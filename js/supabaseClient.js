@@ -18,7 +18,7 @@ function isSupabaseConfigured() {
   const url = (typeof SUPABASE_URL === "string" ? SUPABASE_URL : "").trim();
   const key = (typeof SUPABASE_ANON_KEY === "string" ? SUPABASE_ANON_KEY : "").trim();
 
-  if (!url || url.includes("https://avgwolhybzanicocqxgy.supabase.co") || !key || key.includes("sb_publishable_8BxXBIZ5amqQIMBdBcc5rA_TQ7QBYff")) return false;
+  if (!url || url.includes("여기에") || !key || key.includes("여기에")) return false;
 
   const badUrlChars = findNonLatin1Chars(url);
   const badKeyChars = findNonLatin1Chars(key);
