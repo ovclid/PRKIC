@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>공공임대형 지식산업센터 통합 지도 (프로토타입)</title>
+<style>
+  :root {
+    --navy: #1E3A8A;
+    --blue: #1E88E5;      /* 완공 */
+    --red: #E53935;       /* 건설중 */
+    --ink: #1B1F27;
+    --ink-soft: #5B6172;
+    --line: #E4E4E0;
+    --bg: #F7F7F4;
+    --panel: #FFFFFF;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    /* 페이지 자체가 스크롤되지 않도록 뷰포트에 고정 - sidebar 안의 .list만 자체
+       overflow-y:auto로 스크롤되게 함 (전통시장 프로젝트 style.css와 동일한 기법).
+       이게 없으면 리스트 항목이 많아질 때 body 전체가 늘어나면서 지도까지
+       같이 스크롤되어 버림. */
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+  }
+  body {
+    font-family: "Pretendard", "Apple SD Gothic Neo", -apple-system, BlinkMacSystemFont, "Malgun Gothic", sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+  }
+  .app {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    height: 100vh;
+  }
+  .sidebar {
+    background: var(--panel);
+    border-right: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0; /* grid 자식 기본 min-height:auto 때문에 안의 .list가 못 줄어드는 문제 방지 */
+  }
+  .sidebar-header { padding: 22px 20px 14px; border-bottom: 1px solid var(--line); }
+  .sidebar-header .eyebrow { font-size: 12px; color: var(--navy); font-weight: 600; letter-spacing: 0.02em; margin: 0 0 4px; }
+  .sidebar-header h1 { font-size: 18px; line-height: 1.35; margin: 0 0 6px; font-weight: 700; }
+  .sidebar-header p { font-size: 12.5px; color: var(--ink-soft); margin: 0; }
+  .status-tabs { display: flex; gap: 6px; padding: 12px 20px 0; }
+  .status-tab { flex: 1; text-align: center; padding: 7px 4px; border-radius: 7px; font-size: 12.5px; font-weight: 600; cursor: pointer; border: 1px solid var(--line); color: var(--ink-soft); background: #FCFCFB; }
+  .status-tab.active[data-status=""] { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .status-tab.active[data-status="준공"] { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .status-tab.active[data-status="건설중"] { background: var(--red); color: #fff; border-color: var(--red); }
+  .controls { padding: 12px 20px 14px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+  .controls input, .controls select { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; font-size: 13px; font-family: inherit; color: var(--ink); background: #FCFCFB; }
+  .controls input:focus, .controls select:focus { outline: none; border-color: var(--navy); }
+  .controls-row { display: flex; gap: 8px; }
+  .controls-row select { flex: 1; }
+  .label-toggle-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-soft); padding: 2px 2px 0; }
+  .label-toggle-row input { margin: 0; }
+  .result-count { padding: 10px 20px 4px; font-size: 12px; color: var(--ink-soft); }
+  .list {
+    flex: 1;
+    min-height: 0; /* 이게 없으면 flex item은 내용 높이만큼 커져서 overflow-y:auto가 작동하지 않음 */
+    overflow-y: auto;
+    padding: 6px 10px 16px;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;             /* Firefox */
+    scrollbar-color: #c7c9d1 transparent;
+  }
+  .list::-webkit-scrollbar { width: 7px; }
+  .list::-webkit-scrollbar-thumb { background: #c7c9d1; border-radius: 4px; }
+  .list::-webkit-scrollbar-thumb:hover { background: #a9acb8; }
+  .list::-webkit-scrollbar-track { background: transparent; }
+  .card { padding: 11px 12px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; margin-bottom: 3px; transition: background 0.12s ease, border-color 0.12s ease; }
+  .card:hover { background: #F1F3F9; }
+  .card.active { background: #EAF0FC; border-color: var(--navy); }
+  .card-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .card-name { font-size: 13px; font-weight: 600; line-height: 1.4; }
+  .badge { font-size: 10.5px; font-weight: 700; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+  .badge.done { color: var(--blue); background: #E3F2FD; }
+  .badge.building { color: var(--red); background: #FDECEA; }
+  .card-meta { font-size: 12px; color: var(--ink-soft); margin-top: 3px; }
+  .map-wrap { position: relative; }
+  #map { width: 100%; height: 100%; }
+  .map-toolbar { position: absolute; top: 16px; left: 16px; background: rgba(255,255,255,0.96); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; font-size: 12.5px; color: var(--ink-soft); box-shadow: 0 2px 10px rgba(0,0,0,0.06); z-index: 5; display: flex; align-items: center; gap: 14px; }
+  .map-toolbar strong { color: var(--ink); }
+  .legend-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+  .legend-dot.done { background: var(--blue); }
+  .legend-dot.building { background: var(--red); }
+
+  /* 센터명 라벨 - 전통시장 프로젝트 .overlay와 동일 */
+  .label-overlay {
+    min-width: 45px; height: 22px; padding: 3px 6px;
+    background-color: #1E3A8A; border-radius: 4px; font-size: 12px; line-height: 16px;
+    box-sizing: border-box; color: #ffffee; font-weight: 600; white-space: nowrap;
+    text-align: center; overflow: hidden; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.50); cursor: pointer;
+  }
+  .label-overlay.selected { background-color: #ad0390; color: #f9f900; }
+
+  /* 마커 클릭 시 뜨는 상세 정보 패널 - 전통시장 프로젝트 .info-panel과 동일한 톤/동작 */
+  .info-panel-fixed { position: absolute; z-index: 6; }
+  .info-panel {
+    width: 260px; min-width: 220px; max-width: 90vw;
+    max-height: 85vh; background: #fff; border: 1px solid #ddd; border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); overflow: hidden;
+    display: flex; flex-direction: column; box-sizing: border-box;
+    resize: both;
+  }
+  .info-panel-header {
+    display: flex; align-items: center; gap: 6px; padding: 6px 8px;
+    background: #f5f5f5; border-bottom: 1px solid #e5e5e5; font-weight: 600; font-size: 13px;
+    flex-shrink: 0; white-space: nowrap; cursor: move; user-select: none;
+  }
+  .info-panel-drag-icon { color: #999; font-size: 11px; line-height: 1; flex-shrink: 0; }
+  .info-panel-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .info-panel-badge {
+    font-size: 10.5px; font-weight: 700; padding: 2px 6px; border-radius: 4px;
+    white-space: nowrap; flex-shrink: 0;
+    color: var(--cat-color, var(--blue)); background: var(--cat-bg, #E3F2FD);
+  }
+  .info-panel-close { cursor: pointer; color: #888; font-size: 15px; line-height: 1; padding: 0 2px; flex-shrink: 0; }
+  .info-panel-close:hover { color: #d9534f; }
+  .info-panel-body { overflow: auto; flex: 1; min-height: 0; padding: 10px 12px; font-size: 12.5px; line-height: 1.6; }
+  .info-panel-body .ip-row { color: var(--ink-soft); margin-bottom: 3px; }
+  .info-panel-body .ip-row b { color: var(--ink); font-weight: 600; }
+  .info-panel-body .ip-note {
+    margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line);
+    font-size: 11.5px; color: var(--red);
+  }
+  .ip-detail-btn {
+    width: 100%; padding: 7px 0; border: none; border-radius: 6px;
+    background: var(--navy); color: #fff; font-size: 12.5px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  .ip-detail-btn:hover { background: #16296B; }
+
+  /* 센터 상세 페이지 (탭 구조) - 문서 3-3 와이어프레임에 대응 */
+  .detail-backdrop {
+    position: fixed; inset: 0; background: rgba(20, 25, 40, 0.45);
+    z-index: 50; display: flex; align-items: center; justify-content: center;
+  }
+  .detail-modal {
+    width: 640px; max-width: 92vw; max-height: 86vh;
+    background: #fff; border-radius: 12px; overflow: hidden;
+    display: flex; flex-direction: column;
+    box-shadow: 0 20px 60px rgba(10,15,30,0.35);
+  }
+  .detail-header {
+    padding: 18px 22px 14px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: flex-start; gap: 12px;
+  }
+  .detail-header-main { flex: 1; min-width: 0; }
+  .detail-header .dh-badge {
+    font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px;
+    color: var(--cat-color); background: var(--cat-bg); display: inline-block; margin-bottom: 6px;
+  }
+  .detail-header h2 { margin: 0; font-size: 17px; font-weight: 700; line-height: 1.4; }
+  .detail-header .dh-sub { margin: 3px 0 0; font-size: 12.5px; color: var(--ink-soft); }
+  .detail-close { cursor: pointer; color: var(--ink-soft); font-size: 20px; line-height: 1; padding: 2px 4px; flex-shrink: 0; }
+  .detail-close:hover { color: var(--ink); }
+  .detail-tabs { display: flex; gap: 2px; padding: 0 14px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+  .detail-tab {
+    padding: 10px 12px; font-size: 12.5px; font-weight: 600; color: var(--ink-soft);
+    cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap;
+  }
+  .detail-tab.active { color: var(--navy); border-bottom-color: var(--navy); }
+  .detail-body { padding: 18px 22px 22px; overflow-y: auto; flex: 1; min-height: 0; font-size: 13px; line-height: 1.7; }
+  .detail-row { display: flex; gap: 8px; padding: 5px 0; border-bottom: 1px dashed var(--line); }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-row .dr-label { width: 110px; flex-shrink: 0; color: var(--ink-soft); font-size: 12.5px; }
+  .detail-row .dr-value { color: var(--ink); }
+  .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+  .stat-card { background: #F7F7F4; border-radius: 8px; padding: 10px 12px; }
+  .stat-card .sc-label { font-size: 11.5px; color: var(--ink-soft); margin-bottom: 3px; }
+  .stat-card .sc-value { font-size: 17px; font-weight: 700; }
+  .empty-state {
+    padding: 30px 10px; text-align: center; color: var(--ink-soft); font-size: 12.5px;
+    background: #FAFAF8; border-radius: 8px; line-height: 1.7;
+  }
+  .empty-state .es-icon { font-size: 20px; margin-bottom: 6px; }
+
+  .key-missing { position: absolute; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 40px; text-align: center; }
+  .key-missing .box { max-width: 420px; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 24px 26px; }
+  .key-missing h2 { font-size: 15px; margin: 0 0 10px; }
+  .key-missing p { font-size: 13px; color: var(--ink-soft); line-height: 1.6; margin: 0 0 8px;}
+  .key-missing code { display: block; background: #F1F3F9; padding: 8px 10px; border-radius: 6px; font-size: 12px; margin-top: 10px; word-break: break-all; }
+  @media (max-width: 820px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: 45vh 55vh; }
+    .sidebar { border-right: none; border-bottom: 1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <p class="eyebrow">공공임대형 지식산업센터</p>
+      <h1>통합 현황 지도 (프로토타입)</h1>
+      <p>준공 30개(파랑) + 건설중 38개(빨강), 총 68개</p>
+    </div>
+    <div class="status-tabs" id="statusTabs">
+      <div class="status-tab active" data-status="">전체</div>
+      <div class="status-tab" data-status="준공">준공</div>
+      <div class="status-tab" data-status="건설중">건설중</div>
+    </div>
+    <div class="controls">
+      <input id="searchInput" type="text" placeholder="센터명 또는 지역으로 검색">
+      <div class="controls-row">
+        <select id="regionFilter"><option value="">전체 지역</option></select>
+        <select id="phaseFilter"><option value="">전체 차수</option></select>
+      </div>
+      <label class="label-toggle-row">
+        <input type="checkbox" id="labelToggle" checked>
+        지도에 센터명 라벨 표시 (넓게 볼 땐 자동으로 숨김)
+      </label>
+    </div>
+    <div class="result-count" id="resultCount"></div>
+    <div class="list" id="list"></div>
+  </aside>
+  <div class="map-wrap">
+    <div id="map"></div>
+    <div class="map-toolbar">
+      <span><span id="visibleCount">68</span>개 표시 중</span>
+      <span><span class="legend-dot done"></span>준공</span>
+      <span><span class="legend-dot building"></span>건설중</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  const CENTERS = [{"code": "BUSAN-01", "name": "부산지식산업센터(금곡점)", "phase": 1, "status": "준공", "lat": 35.2558116930966, "lng": 129.013032632312, "region": "부산", "opened": "2017-03-01", "address": null, "precision": "실주소 지오코딩"}, {"code": "DAEGU-01", "name": "대구지식산업센터", "phase": 1, "status": "준공", "lat": 35.9024044403005, "lng": 128.579433538538, "region": "대구", "opened": "2016-11-01", "address": null, "precision": "실주소 지오코딩"}, {"code": "GWANGJU-01", "name": "I-PLEX광주(광주지식산업센터)", "phase": 1, "status": "준공", "lat": 35.1482316255341, "lng": 126.92588806572, "region": "광주", "opened": "2016-07-01", "address": null, "precision": "실주소 지오코딩"}, {"code": "DAEGU-02", "name": "SW융합테크비즈센터", "phase": 2, "status": "준공", "lat": 35.8353190865256, "lng": 128.682449480001, "region": "대구", "opened": "2019-03-21", "address": null, "precision": "실주소 지오코딩"}, {"code": "DAEJEON-01", "name": "대전지식산업센터", "phase": 2, "status": "준공", "lat": 36.3279276013318, "lng": 127.44352239554, "region": "대전", "opened": "2020-04-01", "address": null, "precision": "실주소 지오코딩"}, {"code": "GYEONGNAM-01", "name": "진주 공공임대형 지식산업센터", "phase": 2, "status": "준공", "lat": 35.1831498229719, "lng": 128.085497606253, "region": "경남", "opened": "2020-01-22", "address": null, "precision": "실주소 지오코딩"}, {"code": "DAEGU-03", "name": "제봉뜰 두류봉제지식산업센터", "phase": 3, "status": "준공", "lat": 35.8568033756739, "lng": 128.568563189449, "region": "대구", "opened": "2021-12-10", "address": null, "precision": "실주소 지오코딩"}, {"code": "CHUNGBUK-01", "name": "미래누리터(청주)", "phase": 3, "status": "준공", "lat": 36.7125506099498, "lng": 127.438359941335, "region": "충북", "opened": "2019-12-13", "address": null, "precision": "실주소 지오코딩"}, {"code": "JEONBUK-01", "name": "전주 혁신창업허브", "phase": 3, "status": "준공", "lat": 35.8623372437218, "lng": 127.081073281356, "region": "전북", "opened": "2020-08-01", "address": null, "precision": "실주소 지오코딩"}, {"code": "ULSAN-01", "name": "3D프린팅 벤처집적 지식산업센터", "phase": 4, "status": "준공", "lat": 35.5074086817306, "lng": 129.303136191249, "region": "울산", "opened": "2020-10-01", "address": null, "precision": "실주소 지오코딩"}, {"code": "JEONBUK-02", "name": "전주 신산업융복합지식산업센터", "phase": 4, "status": "준공", "lat": 35.8235153827947, "lng": 127.153866045126, "region": "전북", "opened": "2022-05-20", "address": null, "precision": "실주소 지오코딩"}, {"code": "GYEONGBUK-01", "name": "포항지식산업센터", "phase": 4, "status": "준공", "lat": 36.0619096749098, "lng": 129.318191150883, "region": "경북", "opened": "2021-03-01", "address": null, "precision": "실주소 지오코딩"}, {"code": "BUSAN-02", "name": "부산지식산업센터(우암점)", "phase": 5, "status": "준공", "lat": 35.1211875477401, "lng": 129.077619751153, "region": "부산", "opened": "2023-06-01", "address": null, "precision": "실주소 지오코딩"}, {"code": "GANGWON-01", "name": "강원혁신지식산업센터", "phase": 5, "status": "준공", "lat": 37.324787613853, "lng": 127.989029675157, "region": "강원", "opened": "2021-12-17", "address": null, "precision": "실주소 지오코딩"}, {"code": "CHUNGNAM-01", "name": "충남지식산업센터", "phase": 5, "status": "준공", "lat": 36.8056037360839, "lng": 127.100149519159, "region": "충남", "opened": "2023-01-16", "address": null, "precision": "실주소 지오코딩"}, {"code": "JEONNAM-01", "name": "고흥 드론센터", "phase": 5, "status": "준공", "lat": 34.6152426459434, "lng": 127.208561032295, "region": "전남", "opened": "2021-10-01", "address": null, "precision": "실주소 지오코딩"}, {"code": "JEONBUK-03", "name": "남원 화장품클러스터지식산업센터", "phase": 6, "status": "준공", "lat": 35.3892475243885, "lng": 127.375794110076, "region": "전북", "opened": "2022-07-01", "address": null, "precision": "실주소 지오코딩"}, {"code": "JEONNAM-02", "name": "영광 e-모빌리티 지식산업센터", "phase": 6, "status": "준공", "lat": 35.2879203337631, "lng": 126.572961707899, "region": "전남", "opened": "2023-08-01", "address": null, "precision": "실주소 지오코딩"}, {"code": "GANGWON-02", "name": "춘천ICT벤처센터", "phase": 6, "status": "준공", "lat": 37.8905459978546, "lng": 127.741769067131, "region": "강원", "opened": "2024-04-04", "address": null, "precision": "실주소 지오코딩"}, {"code": "GYEONGNAM-02", "name": "창원 공공임대형 지식산업센터", "phase": 6, "status": "준공", "lat": 35.1560266202036, "lng": 128.667780201582, "region": "경남", "opened": "2025-02-19", "address": null, "precision": "실주소 지오코딩"}, {"code": "JEONNAM-03", "name": "에너지-ICT 융복합 지식산업센터(나주)", "phase": 6, "status": "준공", "lat": 34.967761426818, "lng": 126.687502149457, "region": "전남", "opened": "2026-06-01", "address": null, "precision": "실주소 지오코딩"}, {"code": "CHUNGNAM-02", "name": "내포 공공임대형 지식산업센터(홍성)", "phase": 7, "status": "준공", "lat": 36.6349741813481, "lng": 126.667037039203, "region": "충남", "opened": "2024-12-01", "address": null, "precision": "실주소 지오코딩"}, {"code": "JEONBUK-04", "name": "전주 기술창업성장 지원센터", "phase": 7, "status": "준공", "lat": 35.8623372437218, "lng": 127.081073281356, "region": "전북", "opened": "2024-10-01", "address": null, "precision": "실주소 지오코딩"}, {"code": "JEONNAM-04", "name": "광양 공공임대형 지식산업센터", "phase": 7, "status": "준공", "lat": 34.9508348102123, "lng": 127.603842479889, "region": "전남", "opened": "2025-05-01", "address": null, "precision": "실주소 지오코딩"}, {"code": "CHUNGBUK-02", "name": "제천 천연물 지식산업센터", "phase": 7, "status": "준공", "lat": 37.1464983302335, "lng": 128.157346363656, "region": "충북", "opened": "2025-04-28", "address": null, "precision": "실주소 지오코딩"}, {"code": "GWANGJU-02", "name": "창업기업성장 지원센터(광주북구)", "phase": 7, "status": "준공", "lat": 35.2022289043532, "lng": 126.881785061695, "region": "광주", "opened": "2026-04-01", "address": null, "precision": "실주소 지오코딩"}, {"code": "CHUNGBUK-03", "name": "충주 공공임대형 지식산업센터", "phase": 8, "status": "준공", "lat": 37.0034956240954, "lng": 127.822828187353, "region": "충북", "opened": "2025-12-22", "address": null, "precision": "실주소 지오코딩"}, {"code": "CHUNGBUK-04", "name": "영동 일라이트 지식산업센터", "phase": 8, "status": "준공", "lat": 36.2859065311959, "lng": 127.810654654609, "region": "충북", "opened": "2025-03-20", "address": null, "precision": "실주소 지오코딩"}, {"code": "CHUNGNAM-03", "name": "서천 바이오특화 지식산업센터", "phase": 8, "status": "준공", "lat": 36.0333330315544, "lng": 126.673640582196, "region": "충남", "opened": "2026-10-01", "address": null, "precision": "실주소 지오코딩"}, {"code": "JEJU-01", "name": "제주 지식산업센터", "phase": 8, "status": "준공", "lat": 33.4507198882665, "lng": 126.551810280308, "region": "제주", "opened": "2025-09-09", "address": null, "precision": "실주소 지오코딩"}, {"code": "BUSAN-03", "name": "7차 부산 강서 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 7, "status": "건설중", "lat": 35.212, "lng": 128.98, "region": "부산", "opened": "", "address": "부산시 강서구 에코델타시티 청7블록 (명지동)", "precision": "읍면동 중심 추정"}, {"code": "DAEGU-04", "name": "7차 대구 북구 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 7, "status": "건설중", "lat": 35.913, "lng": 128.559, "region": "대구", "opened": "", "address": "대구광역시 북구 노원동 3가 262-3", "precision": "읍면동 중심 추정"}, {"code": "CHUNGNAM-04", "name": "8차 충남 아산 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 8, "status": "건설중", "lat": 36.782, "lng": 127.065, "region": "충남", "opened": "", "address": "아산시 배방읍 장재리 2135", "precision": "읍면동 중심 추정"}, {"code": "JEONNAM-05", "name": "8차 전남 화순 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 8, "status": "건설중", "lat": 35.064, "lng": 126.986, "region": "전남", "opened": "", "address": "전라남도 화순군 화순읍 내평리 735(화순생물의약산업단지 내)", "precision": "읍면동 중심 추정"}, {"code": "GYEONGBUK-02", "name": "8차 경북 경산 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 8, "status": "건설중", "lat": 35.825, "lng": 128.741, "region": "경북", "opened": "", "address": "경산북도 경산시 임당동 799(대임지구 내)", "precision": "읍면동 중심 추정"}, {"code": "SEJONG-01", "name": "8차 세종 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 8, "status": "건설중", "lat": 36.48, "lng": 127.264, "region": "세종", "opened": "", "address": "세종특별자치시 집현동 1007-3 일원 (4-2생활권 내)", "precision": "읍면동 중심 추정"}, {"code": "GWANGJU-03", "name": "9차 광주 남구 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 9, "status": "건설중", "lat": 35.132, "lng": 126.902, "region": "광주", "opened": "", "address": "광주광역시 남구 압촌동 497번지 (도시첨단산업단지 내)", "precision": "읍면동 중심 추정"}, {"code": "GANGWON-03", "name": "9차 강원 강릉 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 9, "status": "건설중", "lat": 37.805, "lng": 128.855, "region": "강원", "opened": "", "address": "강원특별자치도 강릉시 사천면 방동리 805-3", "precision": "읍면동 중심 추정"}, {"code": "CHUNGNAM-05", "name": "9차 충남 금산 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 9, "status": "건설중", "lat": 36.108, "lng": 127.488, "region": "충남", "opened": "", "address": "금산군 금성면 하신리 745 (금성농공단지 내)", "precision": "읍면동 중심 추정"}, {"code": "JEONBUK-05", "name": "9차 전북 김제 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 9, "status": "건설중", "lat": 35.803, "lng": 126.881, "region": "전북", "opened": "", "address": "전북 김제시 백산면 부거리 1596, 지평선일반산업단지", "precision": "읍면동 중심 추정"}, {"code": "GYEONGBUK-03", "name": "9차 경북 영천 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 9, "status": "건설중", "lat": 35.973, "lng": 128.938, "region": "경북", "opened": "", "address": "경상북도 영천시 녹전동 1032(하이테크파크지구 내)", "precision": "읍면동 중심 추정"}, {"code": "GYEONGNAM-03", "name": "9차 경남 김해 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 9, "status": "건설중", "lat": 35.228, "lng": 128.889, "region": "경남", "opened": "", "address": "경남 김해시 풍유동 1005-4(서김해 일반산업단지 內)", "precision": "읍면동 중심 추정"}, {"code": "GWANGJU-04", "name": "10차 광주 북구 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 10, "status": "건설중", "lat": 35.22, "lng": 126.878, "region": "광주", "opened": "", "address": "광주 북구 오룡동 산79번지 일원(AI융복합지구 내)", "precision": "읍면동 중심 추정"}, {"code": "ULSAN-02", "name": "10차 울산 울주 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 10, "status": "건설중", "lat": 35.522, "lng": 129.244, "region": "울산", "opened": "", "address": "울산광역시 울주군 삼남읍 가천리 일원(하이테크밸리 일반산단 2단계 내)", "precision": "읍면동 중심 추정"}, {"code": "CHUNGNAM-06", "name": "10차 충남 천안 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 10, "status": "건설중", "lat": 36.75, "lng": 127.187, "region": "충남", "opened": "", "address": "천안시 동남구 풍세면 용정리 산46-1일원 (천안제6일반산단 내)", "precision": "읍면동 중심 추정"}, {"code": "JEONNAM-06", "name": "10차 전남 순천 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 10, "status": "건설중", "lat": 35.03, "lng": 127.375, "region": "전남", "opened": "", "address": "전남 순천시 승주읍 평중리 45-10", "precision": "읍면동 중심 추정"}, {"code": "GYEONGNAM-04", "name": "10차 경남 밀양 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 10, "status": "건설중", "lat": 35.503, "lng": 128.746, "region": "경남", "opened": "", "address": "밀양시 부북면 나노융합 국가산업단지 내 A21-1BL", "precision": "읍면동 중심 추정"}, {"code": "GWANGJU-05", "name": "11차 광주 광산구 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 11, "status": "건설중", "lat": 35.14, "lng": 126.793, "region": "광주", "opened": "", "address": "광산구 연산동 1328번지", "precision": "읍면동 중심 추정"}, {"code": "DAEJEON-02", "name": "11차 대전 중구 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 11, "status": "건설중", "lat": 36.325, "lng": 127.421, "region": "대전", "opened": "", "address": "대전 중구 중촌동 272-9번지 일원", "precision": "읍면동 중심 추정"}, {"code": "DAEJEON-03", "name": "11차 대전 유성구 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 11, "status": "건설중", "lat": 36.362, "lng": 127.356, "region": "대전", "opened": "", "address": "대전 유성구 (위치 미정)", "precision": "시군 중심 추정(부지 미정)"}, {"code": "CHUNGBUK-05", "name": "11차 충북 보은 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 11, "status": "건설중", "lat": 36.489, "lng": 127.729, "region": "충북", "opened": "", "address": "충북 보은군 삼승면 우진리 678-5번지(보은산업단지 내)", "precision": "읍면동 중심 추정"}, {"code": "CHUNGBUK-06", "name": "11차 충북 증평 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 11, "status": "건설중", "lat": 36.785, "lng": 127.581, "region": "충북", "opened": "", "address": "충북 증평군 증평읍 사곡리 1630번지 일원", "precision": "읍면동 중심 추정"}, {"code": "CHUNGNAM-07", "name": "11차 충남 공주 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 11, "status": "건설중", "lat": 36.446, "lng": 127.119, "region": "충남", "opened": "", "address": "공주시 송선동 540-1 (장기농공단지 내)", "precision": "읍면동 중심 추정"}, {"code": "CHUNGNAM-08", "name": "11차 충남 보령 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 11, "status": "건설중", "lat": 36.333, "lng": 126.612, "region": "충남", "opened": "", "address": "보령시 청라면 내현리 925번지 (청라농공단지 A1BL)", "precision": "읍면동 중심 추정"}, {"code": "JEONBUK-06", "name": "11차 전북 익산 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 11, "status": "건설중", "lat": 35.948, "lng": 126.957, "region": "전북", "opened": "", "address": "전북 익산시 갈산동 1, 1-1번지", "precision": "읍면동 중심 추정"}, {"code": "JEONNAM-07", "name": "11차 전남 목포 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 11, "status": "건설중", "lat": 34.812, "lng": 126.392, "region": "전남", "opened": "", "address": "목포시 대양동 1193-29번지", "precision": "읍면동 중심 추정"}, {"code": "GYEONGNAM-05", "name": "11차 경남 양산 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 11, "status": "건설중", "lat": 35.338, "lng": 129.038, "region": "경남", "opened": "", "address": "경남 양산시 다방동 511-1번지 일원", "precision": "읍면동 중심 추정"}, {"code": "BUSAN-04", "name": "12차 부산 서구 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 12, "status": "건설중", "lat": 35.097, "lng": 129.024, "region": "부산", "opened": "", "address": "부산시 서구 서대신동3가 161-31 일원", "precision": "읍면동 중심 추정"}, {"code": "BUSAN-05", "name": "12차 부산 사상구 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 12, "status": "건설중", "lat": 35.152, "lng": 128.991, "region": "부산", "opened": "", "address": "부산시 사상구 감전동 514-2", "precision": "읍면동 중심 추정"}, {"code": "GANGWON-04", "name": "12차 강원 동해 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 12, "status": "건설중", "lat": 37.524, "lng": 129.114, "region": "강원", "opened": "", "address": "강원특별자치도 동해시 구호동 216", "precision": "읍면동 중심 추정"}, {"code": "CHUNGNAM-09", "name": "12차 충남 계룡 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 12, "status": "건설중", "lat": 36.274, "lng": 127.249, "region": "충남", "opened": "", "address": "계룡시 두마면 입암리 627번지 (계룡 제2산업단지 내)", "precision": "읍면동 중심 추정"}, {"code": "JEONBUK-07", "name": "12차 전북 전주 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 12, "status": "건설중", "lat": 35.867, "lng": 127.13, "region": "전북", "opened": "", "address": "전북특별자치도 전주시 덕진구 장동 452-69 번지 일원", "precision": "읍면동 중심 추정"}, {"code": "GYEONGBUK-04", "name": "12차 경북 안동 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 12, "status": "건설중", "lat": 36.568, "lng": 128.729, "region": "경북", "opened": "", "address": "경상북도 안동시 풍산읍 경북바이오 2차 일반산업단지 A2구역", "precision": "읍면동 중심 추정"}, {"code": "GYEONGBUK-05", "name": "12차 경북 예천 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 12, "status": "건설중", "lat": 36.657, "lng": 128.452, "region": "경북", "opened": "", "address": "경북 예천군 (위치 미정)", "precision": "시군 중심 추정(부지 미정)"}, {"code": "GYEONGNAM-06", "name": "12차 경남 사천 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 12, "status": "건설중", "lat": 35.003, "lng": 128.064, "region": "경남", "opened": "", "address": "경남 사천시 용현면 통양리 533-4", "precision": "읍면동 중심 추정"}, {"code": "JEONBUK-08", "name": "13차 전북 정읍 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 13, "status": "건설중", "lat": 35.57, "lng": 126.856, "region": "전북", "opened": "", "address": "전북 정읍시 (위치 미정)", "precision": "시군 중심 추정(부지 미정)"}, {"code": "GANGWON-05", "name": "13차 강원 삼척 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 13, "status": "건설중", "lat": 37.45, "lng": 129.165, "region": "강원", "opened": "", "address": "강원 삼척시 (위치 미정)", "precision": "시군 중심 추정(부지 미정)"}, {"code": "JEONNAM-08", "name": "13차 전남 강진 공공임대형 지식산업센터(건설중, 명칭 미정)", "phase": 13, "status": "건설중", "lat": 34.642, "lng": 126.767, "region": "전남", "opened": "", "address": "전남 강진군 (위치 미정)", "precision": "시군 중심 추정(부지 미정)"}];
+  const KAKAO_JS_KEY = "ceee3e6f1b7e1fd8903fb41b36c2a698";
+  // 완공센터 30개의 운영현황(입주율/임대료/운영기관) - 260707_지식산업센터_입주율_및_임대료_조사.xlsx에서 추출.
+  // 건설중 센터는 아직 운영 전이라 값이 없음.
+  const OPS_DATA = {"BUSAN-01": {"operator": "(재)부산경제진흥원", "rent_2026": "11,754원/3.3㎡", "rent_note_2026": "(주변시세 65%)", "occ2026": {"total_units": 68, "companies": 34, "occupied_units": 68, "vacant_units": 0, "occ_rate": 100.0}, "industry": "지식서비스 산업"}, "DAEGU-01": {"operator": "(사)대구제3산업단지관리공단", "rent_2026": "12,533원/3.3㎡", "rent_note_2026": "(주변시세 95%)", "occ2026": {"total_units": 46, "companies": 29, "occupied_units": 42, "vacant_units": 4, "occ_rate": 91.3}, "industry": "정밀가공 등"}, "GWANGJU-01": {"operator": "(재)광주테크노파크", "rent_2026": "14,791원/3.3㎡", "rent_note_2026": "(주변시세의 85%)", "occ2026": {"total_units": 63, "companies": 58, "occupied_units": 60, "vacant_units": 3, "occ_rate": 95.2}, "industry": "생체의료소재"}, "DAEGU-02": {"operator": "(재)대구디지털혁신진흥원", "rent_2026": "14,646원/3.3㎡", "rent_note_2026": "(주변시세 96%)", "occ2026": {"total_units": 50, "companies": 39, "occupied_units": 49, "vacant_units": 1, "occ_rate": 98.0}, "industry": "ICT/SW 등"}, "DAEJEON-01": {"operator": "(재)대전일자리경제진흥원", "rent_2026": "9,830원/3.3㎡", "rent_note_2026": "(시세 비교無)", "occ2026": {"total_units": 52, "companies": 32, "occupied_units": 50, "vacant_units": 2, "occ_rate": 96.2}, "industry": "지식서비스 분야"}, "GYEONGNAM-01": {"operator": "(재)경남창조경제혁신센터", "rent_2026": "11,000원/3.3㎡", "rent_note_2026": "(주변시세 77%)", "occ2026": {"total_units": 66, "companies": 37, "occupied_units": 56, "vacant_units": 10, "occ_rate": 84.8}, "industry": "문화콘텐츠 분야"}, "DAEGU-03": {"operator": "대구공공시설관리공단", "rent_2026": "10,403원/3.3㎡", "rent_note_2026": "(주변시세 73%)", "occ2026": {"total_units": 29, "companies": 28, "occupied_units": 28, "vacant_units": 1, "occ_rate": 96.6}, "industry": "섬유패션산업 등"}, "CHUNGBUK-01": {"operator": "(사)한국산업진흥협회", "rent_2026": "12,018/3.3㎡", "rent_note_2026": "(주변시세 60%)", "occ2026": {"total_units": 38, "companies": 27, "occupied_units": 35, "vacant_units": 3, "occ_rate": 92.1}, "industry": "이차전지, 화장품, 반도체 등"}, "JEONBUK-01": {"operator": "(사)캠틱종합기술원", "rent_2026": "5,500원/3.3㎡", "rent_note_2026": "(주변시세의 30%)", "occ2026": {"total_units": 55, "companies": 47, "occupied_units": 52, "vacant_units": 3, "occ_rate": 94.5}, "industry": "ICT 신산업 분야"}, "ULSAN-01": {"operator": "(재)울산정보산업진흥원", "rent_2026": "5,000원/3.3㎡", "rent_note_2026": "(시세 비교無)", "occ2026": {"total_units": 56, "companies": 27, "occupied_units": 44, "vacant_units": 12, "occ_rate": 78.6}, "industry": "3D프린팅"}, "JEONBUK-02": {"operator": "(재)전주정보문화산업진흥원", "rent_2026": "18,150원/3.3㎡", "rent_note_2026": "(시세 비교無)", "occ2026": {"total_units": 31, "companies": 23, "occupied_units": 30, "vacant_units": 1, "occ_rate": 96.8}, "industry": "ICT 신산업 분야"}, "GYEONGBUK-01": {"operator": "(재)포항테크노파크", "rent_2026": "10,164원/3.3㎡", "rent_note_2026": "(주변시세 90%)", "occ2026": {"total_units": 64, "companies": 24, "occupied_units": 58, "vacant_units": 6, "occ_rate": 90.6}, "industry": "ICT, 바이오"}, "BUSAN-02": {"operator": "(재)부산경제진흥원", "rent_2026": "15,045원/3.3㎡", "rent_note_2026": "(주변시세 42%)", "occ2026": {"total_units": 40, "companies": 25, "occupied_units": 40, "vacant_units": 0, "occ_rate": 100.0}, "industry": "해양수산 신산업"}, "GANGWON-01": {"operator": "(재)강원도혁신도시발전지원센터", "rent_2026": "14,243원/3.3㎡", "rent_note_2026": "(주변시세 60%)", "occ2026": {"total_units": 69, "companies": 31, "occupied_units": 69, "vacant_units": 0, "occ_rate": 100.0}, "industry": "제조업, 지식/ICT"}, "CHUNGNAM-01": {"operator": "(재)충남테크노파크", "rent_2026": "20,836원/3.3㎡", "rent_note_2026": "(시세 비교無)", "occ2026": {"total_units": 53, "companies": 33, "occupied_units": 48, "vacant_units": 5, "occ_rate": 90.6}, "industry": "지식/ICT, 스마트제조"}, "JEONNAM-01": {"operator": "(재)전남테크노파크", "rent_2026": "10,890원/3.3㎡", "rent_note_2026": "(시세 비교無)", "occ2026": {"total_units": 22, "companies": 16, "occupied_units": 20, "vacant_units": 2, "occ_rate": 90.9}, "industry": "드론부품 등"}, "JEONBUK-03": {"operator": "(재)남원시바이오산업연구원", "rent_2026": "35,977원/3.3㎡", "rent_note_2026": "(시세 비교無)", "occ2026": {"total_units": 36, "companies": 26, "occupied_units": 34, "vacant_units": 2, "occ_rate": 94.4}, "industry": "화장품 관련 산업"}, "JEONNAM-02": {"operator": "(사)한국스마트이모빌리티협회", "rent_2026": "16,734원/3.3㎡", "rent_note_2026": "(시세 비교無)", "occ2026": {"total_units": 47, "companies": 22, "occupied_units": 30, "vacant_units": 17, "occ_rate": 63.8}, "industry": "e모빌리티 등"}, "GANGWON-02": {"operator": "(재)강원정보문화산업진흥원", "rent_2026": "15,453원/3.3㎡", "rent_note_2026": "(주변시세 40%)", "occ2026": {"total_units": 83, "companies": 44, "occupied_units": 83, "vacant_units": 0, "occ_rate": 100.0}, "industry": "ICT 산업 분야"}, "GYEONGNAM-02": {"operator": "창원산업진흥원", "rent_2026": "16,335원/3.3㎡", "rent_note_2026": "(시세 비교無)", "occ2026": {"total_units": 68, "companies": 50, "occupied_units": 66, "vacant_units": 2, "occ_rate": 97.1}, "industry": "의료, 바이오"}, "JEONNAM-03": {"operator": "(재)전남테크노파크", "rent_2026": "17,592원/3.3㎡", "rent_note_2026": "(시세 비교無)", "occ2026": {"total_units": 33, "companies": 0, "occupied_units": 0, "vacant_units": 33, "occ_rate": 0.0}, "industry": "에너지 및 정보통신기술"}, "CHUNGNAM-02": {"operator": "한국과학기술원", "rent_2026": "16,770원/3.3㎡", "rent_note_2026": "(시세 비교無)", "occ2026": {"total_units": 59, "companies": 31, "occupied_units": 34, "vacant_units": 25, "occ_rate": 57.6}, "industry": "제조업, 정보통신산업 등"}, "JEONBUK-04": {"operator": "(사)캠틱종합기술원", "rent_2026": "6,600원/3.3㎡", "rent_note_2026": "(주변시세의 35%)", "occ2026": {"total_units": 35, "companies": 19, "occupied_units": 33, "vacant_units": 2, "occ_rate": 94.3}, "industry": "ICT 신산업 분야"}, "JEONNAM-04": {"operator": "(재)전남테크노파크", "rent_2026": "9,860원/3.3㎡", "rent_note_2026": "(시세 비교無)", "occ2026": {"total_units": 36, "companies": 23, "occupied_units": 36, "vacant_units": 0, "occ_rate": 100.0}, "industry": "제조업, 연구개발업 등"}, "CHUNGBUK-02": {"operator": "(재)충북테크노파크", "rent_2026": "12,100원/3.3㎟", "rent_note_2026": "(시세 비교無)", "occ2026": {"total_units": 48, "companies": 13, "occupied_units": 28, "vacant_units": 20, "occ_rate": 58.3}, "industry": "제조업, 연구개발업"}, "GWANGJU-02": {"operator": "(재)광주테크노파크", "rent_2026": "16,073원 /3.3㎡", "rent_note_2026": "(시세 비교無)", "occ2026": {"total_units": 84, "companies": 24, "occupied_units": 42, "vacant_units": 42, "occ_rate": 50.0}, "industry": "제조업, 정보통신업 등"}, "CHUNGBUK-03": {"operator": "충북과학기술원", "rent_2026": "15,609/3.3㎡", "rent_note_2026": "(시세 비교無)", "occ2026": {"total_units": 49, "companies": 20, "occupied_units": 29, "vacant_units": 20, "occ_rate": 59.2}, "industry": "바이오, 첨단소재 등"}, "CHUNGBUK-04": {"operator": "(재)충북테크노파크", "rent_2026": "10,890원/3.3㎡", "rent_note_2026": "(시세 비교無)", "occ2026": {"total_units": 28, "companies": 16, "occupied_units": 16, "vacant_units": 12, "occ_rate": 57.1}, "industry": "제조업, 연구개발업"}, "CHUNGNAM-03": {"operator": "(재)충남테크노파크", "rent_2026": "3,850원 /3.3㎡", "rent_note_2026": "(시세 비교無)", "occ2026": {"total_units": null, "companies": null, "occupied_units": null, "vacant_units": 0, "occ_rate": null}, "industry": "제조업, 지식/정보통신산업"}, "JEJU-01": {"operator": "(재)제주테크노파크", "rent_2026": "12,110원 /3.3㎡", "rent_note_2026": "(시세 비교無)", "occ2026": {"total_units": 37, "companies": 21, "occupied_units": 26, "vacant_units": 11, "occ_rate": 70.3}, "industry": "제조업, 지식·정보통신산업 등"}}
+;
+  // 전통시장 프로젝트(js/interactions.js)와 동일한 이름/값의 상수들.
+  const LABEL_VISIBLE_MAX_LEVEL = 11; // 이 레벨보다 축소돼 있으면 라벨 자동 숨김 (전국 뷰 기준으로 조정)
+</script>
+
+<script>
+  function loadKakaoSdkAndInit() {
+    if (!KAKAO_JS_KEY || KAKAO_JS_KEY.indexOf("여기에") === 0) {
+      document.querySelector(".map-wrap").insertAdjacentHTML("beforeend", `
+        <div class="key-missing">
+          <div class="box">
+            <h2>Kakao Maps JavaScript 키가 필요합니다</h2>
+            <p>이 파일 상단의 <code>KAKAO_JS_KEY</code> 값을 Kakao 개발자센터에서 발급받은
+            JavaScript 키로 바꿔주세요. (REST API 키와는 다른 키입니다.)</p>
+            <p>Kakao 개발자센터 &gt; 내 애플리케이션 &gt; 앱 키 &gt; JavaScript 키</p>
+            <p>발급 후 플랫폼 설정에서 이 파일을 여는 도메인(또는 localhost)을
+            등록해야 지도가 정상적으로 뜹니다.</p>
+            <code>const KAKAO_JS_KEY = "실제_키_값";</code>
+          </div>
+        </div>
+      `);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?autoload=false&appkey=${KAKAO_JS_KEY}`;
+    script.onload = function () { kakao.maps.load(initMap); };
+    document.head.appendChild(script);
+  }
+
+  let map, mapContainer, markerEntries = [], statusFilter = "";
+  let labelsEnabled = true;
+  let selectedCode = null;
+  let infoPanelEl = null, infoPanelToken = 0;
+  let infoPanelCustomPosition = null; // 사용자가 끌어다 옮긴 위치 기억 (세션 내)
+  let suppressNextMapClick = false;   // 라벨(CustomOverlay) 클릭이 지도 click으로 새는 것 방지
+
+  // 마커 이미지 - 전통시장 프로젝트 getMarkerImage()와 동일한 SVG(28x38, 흰 원)/오프셋 규칙.
+  const MARKER_W = 28, MARKER_H = 38;
+  const LABEL_H = 22;                                    // .label-overlay height와 반드시 일치
+  const GAP_ABOVE_PIN_PX = MARKER_H;                      // 마커 높이만큼 위에 라벨
+  const LABEL_Y_ANCHOR = 1 + GAP_ABOVE_PIN_PX / LABEL_H;  // ≈ 2.73
+
+  const markerImageCache = {};
+  function pinImage(status) {
+    const color = status === "건설중" ? "#E53935" : "#1E88E5";
+    if (markerImageCache[color]) return markerImageCache[color];
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${MARKER_W}" height="${MARKER_H}" viewBox="0 0 28 38">` +
+      `<path d="M14 0C6.3 0 0 6.3 0 14c0 10.5 14 24 14 24s14-13.5 14-24C28 6.3 21.7 0 14 0z" fill="${color}" stroke="#ffffff" stroke-width="1.5"/>` +
+      `<circle cx="14" cy="14" r="5" fill="#ffffff"/>` +
+      `</svg>`;
+    const src = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg);
+    const img = new kakao.maps.MarkerImage(src, new kakao.maps.Size(MARKER_W, MARKER_H), {
+      offset: new kakao.maps.Point(MARKER_W / 2, MARKER_H),
+    });
+    markerImageCache[color] = img;
+    return img;
+  }
+
+  // 지도 라벨은 이름이 너무 길면 복잡해 보여서 자주 반복되는 단어는 빼고 표시.
+  // (정보 패널 제목 등 다른 곳의 정식 명칭은 그대로 유지)
+  function shortLabelName(name) {
+    return name
+      .replace(/\(건설중, 명칭 미정\)/, "")
+      .replaceAll("공공임대형", "")
+      .replaceAll("지식산업센터", "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function colorForStatus(status) { return status === "건설중" ? "#E53935" : "#1E88E5"; }
+  function hexToLightBg(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    return `rgba(${r}, ${g}, ${b}, 0.12)`;
+  }
+
+  function initMap() {
+    mapContainer = document.getElementById("map");
+    map = new kakao.maps.Map(mapContainer, {
+      center: new kakao.maps.LatLng(36.4, 127.9),
+      level: 13,
+    });
+    map.setMaxLevel(14);
+
+    populateFilters();
+    renderList(CENTERS);
+    plotMarkers(CENTERS);
+    updateLabelVisibility();
+
+    document.getElementById("searchInput").addEventListener("input", applyFilters);
+    document.getElementById("regionFilter").addEventListener("change", applyFilters);
+    document.getElementById("phaseFilter").addEventListener("change", applyFilters);
+    document.getElementById("labelToggle").addEventListener("change", (e) => {
+      labelsEnabled = e.target.checked;
+      updateLabelVisibility();
+    });
+    document.querySelectorAll(".status-tab").forEach(tab => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".status-tab").forEach(t => t.classList.remove("active"));
+        tab.classList.add("active");
+        statusFilter = tab.dataset.status;
+        applyFilters();
+      });
+    });
+    kakao.maps.event.addListener(map, "zoom_changed", updateLabelVisibility);
+
+    // 빈 지도를 클릭하면 선택 해제 (전통시장 프로젝트의 clearMarketSelection과 동일한 동작).
+    // 라벨(CustomOverlay) 클릭은 suppressNextMapClick으로 이 리스너 1회를 무시시킨다.
+    kakao.maps.event.addListener(map, "click", () => {
+      if (suppressNextMapClick) { suppressNextMapClick = false; return; }
+      clearSelection();
+    });
+  }
+
+  function populateFilters() {
+    const regions = [...new Set(CENTERS.map(c => c.region))].sort();
+    const phases = [...new Set(CENTERS.map(c => c.phase))].sort((a,b) => a-b);
+    const regionSel = document.getElementById("regionFilter");
+    const phaseSel = document.getElementById("phaseFilter");
+    regions.forEach(r => {
+      const opt = document.createElement("option"); opt.value = r; opt.textContent = r;
+      regionSel.appendChild(opt);
+    });
+    phases.forEach(p => {
+      const opt = document.createElement("option"); opt.value = p; opt.textContent = p + "차";
+      phaseSel.appendChild(opt);
+    });
+  }
+
+  function applyFilters() {
+    const q = document.getElementById("searchInput").value.trim().toLowerCase();
+    const region = document.getElementById("regionFilter").value;
+    const phase = document.getElementById("phaseFilter").value;
+    const filtered = CENTERS.filter(c => {
+      const matchesQ = !q || c.name.toLowerCase().includes(q) || c.region.toLowerCase().includes(q);
+      const matchesRegion = !region || c.region === region;
+      const matchesPhase = !phase || String(c.phase) === phase;
+      const matchesStatus = !statusFilter || c.status === statusFilter;
+      return matchesQ && matchesRegion && matchesPhase && matchesStatus;
+    });
+    renderList(filtered);
+    plotMarkers(filtered);
+    document.getElementById("visibleCount").textContent = filtered.length;
+  }
+
+  function renderList(items) {
+    const list = document.getElementById("list");
+    list.innerHTML = "";
+    document.getElementById("resultCount").textContent = `${items.length}개 센터`;
+    items.forEach(c => {
+      const card = document.createElement("div");
+      card.className = "card" + (c.code === selectedCode ? " active" : "");
+      card.dataset.code = c.code;
+      const badgeClass = c.status === "건설중" ? "building" : "done";
+      card.innerHTML = `
+        <div class="card-top">
+          <span class="card-name">${c.name}</span>
+          <span class="badge ${badgeClass}">${c.status}</span>
+        </div>
+        <div class="card-meta">${c.phase}차 · ${c.region}${c.opened ? " · 개소 " + formatDate(c.opened) : ""}</div>
+      `;
+      card.addEventListener("click", () => selectCenter(c, { pan: true }));
+      list.appendChild(card);
+    });
+  }
+
+  function plotMarkers(items) {
+    markerEntries.forEach(e => { e.marker.setMap(null); e.labelOverlay.setMap(null); });
+    markerEntries = [];
+
+    items.forEach(c => {
+      const pos = new kakao.maps.LatLng(c.lat, c.lng);
+
+      // 마커: kakao Marker 클릭은 지도 click으로 새지 않으므로 별도 suppress 불필요
+      // (전통시장 프로젝트와 동일한 이유).
+      const marker = new kakao.maps.Marker({ position: pos, map: map, image: pinImage(c.status) });
+      kakao.maps.event.addListener(marker, "click", () => selectCenter(c));
+
+      // 라벨: CustomOverlay는 지도 click으로 샐 수 있어서 suppressNextMapClick으로 막는다.
+      const labelEl = document.createElement("div");
+      labelEl.className = "label-overlay";
+      labelEl.textContent = shortLabelName(c.name);
+      labelEl.addEventListener("click", () => {
+        suppressNextMapClick = true;
+        selectCenter(c);
+      });
+
+      const labelOverlay = new kakao.maps.CustomOverlay({
+        position: pos, content: labelEl, yAnchor: LABEL_Y_ANCHOR, zIndex: 4,
+      });
+      labelOverlay.setMap(labelsEnabled ? map : null);
+
+      markerEntries.push({ code: c.code, center: c, marker, labelOverlay, labelEl });
+    });
+  }
+
+  function updateLabelVisibility() {
+    const zoomOk = map.getLevel() <= LABEL_VISIBLE_MAX_LEVEL;
+    markerEntries.forEach(e => { e.labelOverlay.setMap(labelsEnabled && zoomOk ? map : null); });
+  }
+
+  // ===== 선택 상태 + 정보 패널 (전통시장 프로젝트 selectMarket / openInfoPanel과 동일 패턴) =====
+
+  function selectCenter(c, { pan = false } = {}) {
+    if (selectedCode === c.code) return; // 이미 선택된 걸 다시 클릭 - 전통시장 마커와 동일하게 무시
+    selectedCode = c.code;
+    markerEntries.forEach(e => e.labelEl.classList.toggle("selected", e.code === c.code));
+    document.querySelectorAll(".card").forEach(el => el.classList.toggle("active", el.dataset.code === c.code));
+    if (pan) map.panTo(new kakao.maps.LatLng(c.lat, c.lng));
+    openInfoPanel(c);
+  }
+
+  function clearSelection() {
+    if (selectedCode == null) return;
+    selectedCode = null;
+    markerEntries.forEach(e => e.labelEl.classList.remove("selected"));
+    document.querySelectorAll(".card").forEach(el => el.classList.remove("active"));
+    closeInfoPanel();
+  }
+
+  function buildInfoPanelBody(c) {
+    return `
+      <div class="ip-row"><b>${c.phase}차</b> · ${c.region}</div>
+      ${c.opened ? `<div class="ip-row">개소일 &nbsp;${formatDate(c.opened)}</div>` : ""}
+      ${c.address ? `<div class="ip-row">${c.address}</div>` : ""}
+      <div class="ip-row">센터코드 &nbsp;${c.code}</div>
+      ${c.precision && c.precision !== "실주소 지오코딩" ? `<div class="ip-note">⚠ 좌표: ${c.precision} — 정확한 대지 확정 후 재지오코딩 필요</div>` : ""}
+      <div class="ip-detail-link" style="margin-top:10px;">
+        <button type="button" class="ip-detail-btn">상세보기 →</button>
+      </div>
+    `;
+  }
+
+  function openInfoPanel(c) {
+    closeInfoPanel(); // 한 번에 하나만 (전통시장 프로젝트와 동일)
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "info-panel info-panel-fixed";
+    const color = colorForStatus(c.status);
+    wrapper.style.setProperty("--cat-color", color);
+    wrapper.style.setProperty("--cat-bg", hexToLightBg(color));
+
+    const header = document.createElement("div");
+    header.className = "info-panel-header";
+
+    const dragIcon = document.createElement("span");
+    dragIcon.className = "info-panel-drag-icon";
+    dragIcon.textContent = "⠿";
+    dragIcon.setAttribute("aria-hidden", "true");
+    header.appendChild(dragIcon);
+
+    const title = document.createElement("span");
+    title.className = "info-panel-title";
+    title.textContent = c.name.replace(/\(건설중, 명칭 미정\)/, "");
+    header.appendChild(title);
+
+    const badge = document.createElement("span");
+    badge.className = "info-panel-badge";
+    badge.textContent = c.status;
+    header.appendChild(badge);
+
+    const closeBtn = document.createElement("span");
+    closeBtn.className = "info-panel-close";
+    closeBtn.textContent = "×";
+    closeBtn.addEventListener("click", () => clearSelection());
+    header.appendChild(closeBtn);
+
+    wrapper.appendChild(header);
+
+    const body = document.createElement("div");
+    body.className = "info-panel-body";
+    body.innerHTML = buildInfoPanelBody(c);
+    const detailBtn = body.querySelector(".ip-detail-btn");
+    if (detailBtn) detailBtn.addEventListener("click", () => openDetailModal(c));
+    wrapper.appendChild(body);
+
+    const onHeaderDragStart = (e) => {
+      if (e.target === closeBtn) return;
+      startDragPanel(wrapper, e, (left, top) => { infoPanelCustomPosition = { left, top }; });
+    };
+    header.addEventListener("mousedown", onHeaderDragStart);
+    header.addEventListener("touchstart", onHeaderDragStart, { passive: false });
+
+    mapContainer.appendChild(wrapper);
+    if (infoPanelCustomPosition) {
+      wrapper.style.left = `${infoPanelCustomPosition.left}px`;
+      wrapper.style.top = `${Math.max(infoPanelCustomPosition.top, 0)}px`;
+    } else {
+      wrapper.style.left = `${mapContainer.clientWidth - wrapper.offsetWidth - 270}px`;
+      wrapper.style.top = "10px";
+    }
+
+    infoPanelEl = wrapper;
+    infoPanelToken += 1;
+  }
+
+  function closeInfoPanel() {
+    if (infoPanelEl && infoPanelEl.parentNode) infoPanelEl.parentNode.removeChild(infoPanelEl);
+    infoPanelEl = null;
+    infoPanelToken += 1;
+  }
+
+  // 전통시장 프로젝트 startDragPanel()과 동일 - 마우스/터치 공용, 위로만 못 넘어가게 clamp.
+  function startDragPanel(panelEl, startEvent, onPositionChange) {
+    const point = startEvent.touches ? startEvent.touches[0] : startEvent;
+    const startX = point.clientX, startY = point.clientY;
+    const startLeft = panelEl.offsetLeft, startTop = panelEl.offsetTop;
+
+    function onMove(e) {
+      const p = e.touches ? e.touches[0] : e;
+      let left = startLeft + (p.clientX - startX);
+      let top = Math.max(startTop + (p.clientY - startY), 0);
+      panelEl.style.left = `${left}px`;
+      panelEl.style.top = `${top}px`;
+      onPositionChange(left, top);
+      if (e.cancelable) e.preventDefault();
+    }
+    function onEnd() {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onEnd);
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", onEnd);
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onEnd);
+    document.addEventListener("touchmove", onMove, { passive: false });
+    document.addEventListener("touchend", onEnd);
+    startEvent.preventDefault();
+  }
+
+  function formatDate(s) { return s ? s.replaceAll("-", ".") : "-"; }
+
+  // ===== 센터 상세 페이지 (문서 3-3 와이어프레임: 개요/건립비·추진경과/담당자/월별 집행현황/운영현황/자료요청 이력) =====
+
+  const DETAIL_TABS = ["개요", "건립비·추진경과", "담당자", "월별 집행현황", "운영현황", "자료요청 이력"];
+  let detailBackdropEl = null;
+
+  function emptyState(msg) {
+    return `<div class="empty-state"><div class="es-icon">🛈</div>${msg}</div>`;
+  }
+
+  function buildOverviewTab(c) {
+    return `
+      <div class="detail-row"><span class="dr-label">정식 명칭</span><span class="dr-value">${c.name.replace(/\(건설중, 명칭 미정\)/, "")}</span></div>
+      <div class="detail-row"><span class="dr-label">센터코드</span><span class="dr-value">${c.code}</span></div>
+      <div class="detail-row"><span class="dr-label">차수 / 상태</span><span class="dr-value">${c.phase}차 · ${c.status}</span></div>
+      <div class="detail-row"><span class="dr-label">지역</span><span class="dr-value">${c.region}</span></div>
+      ${c.opened ? `<div class="detail-row"><span class="dr-label">개소일</span><span class="dr-value">${formatDate(c.opened)}</span></div>` : ""}
+      ${c.address ? `<div class="detail-row"><span class="dr-label">위치</span><span class="dr-value">${c.address}${c.precision && c.precision !== "실주소 지오코딩" ? ` <span style="color:var(--red);font-size:11.5px;">(⚠ ${c.precision})</span>` : ""}</span></div>` : ""}
+    `;
+  }
+
+  function buildBudgetTab(c) {
+    return emptyState(
+      "연도별 국비/지방비 건립비와 추진경과는 아직 이 프로토타입에 연동되지 않았습니다.<br>" +
+      "ERD의 construction_budget_yearly / construction_milestones 테이블에 데이터가 채워지면 이 탭에 연도별 그래프와 타임라인이 표시될 예정입니다."
+    );
+  }
+
+  function buildContactTab(c) {
+    const ops = OPS_DATA[c.code];
+    if (ops && ops.operator) {
+      return `
+        <div class="detail-row"><span class="dr-label">위탁운영기관</span><span class="dr-value">${ops.operator}</span></div>
+        ${emptyState("광역/기초지자체 실무 담당자 연락처는 아직 연동 전입니다. contacts 테이블 데이터 확정 후 채워집니다.")}
+      `;
+    }
+    return emptyState("아직 운영기관이 지정되지 않았거나(건설중) 담당자 정보가 연동되지 않았습니다.");
+  }
+
+  function buildExecutionTab(c) {
+    return emptyState(
+      "월별 국비 집행 현황(집행률, 집행부진 사유 등)은 아직 이 프로토타입에 연동되지 않았습니다.<br>" +
+      "monthly_execution 테이블 데이터가 채워지면 이 탭에 월별 집행률 추이가 표시될 예정입니다."
+    );
+  }
+
+  function buildOperationTab(c) {
+    if (c.status === "건설중") {
+      return emptyState("건설중 센터입니다. 준공 후 운영 데이터(입주율·임대료)가 연동됩니다.");
+    }
+    const ops = OPS_DATA[c.code];
+    if (!ops) return emptyState("운영 데이터가 아직 없습니다.");
+    const occ = ops.occ2026;
+    const occRateDisplay = occ.occ_rate != null ? `${occ.occ_rate}%` : "-";
+    return `
+      <div class="stat-grid">
+        <div class="stat-card"><div class="sc-label">입주율 (2026.6)</div><div class="sc-value">${occRateDisplay}</div></div>
+        <div class="stat-card"><div class="sc-label">입주기업수</div><div class="sc-value">${occ.companies ?? "-"}</div></div>
+        <div class="stat-card"><div class="sc-label">공실수 / 전체실수</div><div class="sc-value">${occ.vacant_units ?? "-"} / ${occ.total_units ?? "-"}</div></div>
+      </div>
+      <div class="detail-row"><span class="dr-label">임대료(3.3㎡당)</span><span class="dr-value">${ops.rent_2026 || "-"} <span style="color:var(--ink-soft);font-size:11.5px;">${ops.rent_note_2026 || ""}</span></span></div>
+      <div class="detail-row"><span class="dr-label">주요업종</span><span class="dr-value">${ops.industry || "-"}</span></div>
+      <div class="detail-row"><span class="dr-label">위탁운영기관</span><span class="dr-value">${ops.operator || "-"}</span></div>
+      <p style="margin:12px 0 0;font-size:11.5px;color:var(--ink-soft);">출처: 260707_지식산업센터_입주율_및_임대료_조사.xlsx (2021~2026년 연도별 추이는 추후 그래프로 추가 예정)</p>
+    `;
+  }
+
+  function buildRequestHistoryTab(c) {
+    return emptyState(
+      "이 센터로 발송된 본부 자료요청(data_requests) 이력이 없습니다.<br>" +
+      "본부에서 새 자료요청을 배포하면 이 탭에 시간순으로 쌓이도록 설계되어 있습니다 (ERD 문서 6장 참고)."
+    );
+  }
+
+  const TAB_BUILDERS = [buildOverviewTab, buildBudgetTab, buildContactTab, buildExecutionTab, buildOperationTab, buildRequestHistoryTab];
+
+  function openDetailModal(c) {
+    closeDetailModal();
+
+    const backdrop = document.createElement("div");
+    backdrop.className = "detail-backdrop";
+    backdrop.addEventListener("click", (e) => { if (e.target === backdrop) closeDetailModal(); });
+
+    const modal = document.createElement("div");
+    modal.className = "detail-modal";
+    modal.addEventListener("click", (e) => e.stopPropagation());
+
+    const color = colorForStatus(c.status);
+    modal.style.setProperty("--cat-color", color);
+    modal.style.setProperty("--cat-bg", hexToLightBg(color));
+
+    const header = document.createElement("div");
+    header.className = "detail-header";
+    header.innerHTML = `
+      <div class="detail-header-main">
+        <span class="dh-badge">${c.status}</span>
+        <h2>${c.name.replace(/\(건설중, 명칭 미정\)/, "")}</h2>
+        <p class="dh-sub">${c.phase}차 · ${c.region} · ${c.code}</p>
+      </div>
+    `;
+    const closeBtn = document.createElement("span");
+    closeBtn.className = "detail-close";
+    closeBtn.textContent = "×";
+    closeBtn.addEventListener("click", closeDetailModal);
+    header.appendChild(closeBtn);
+    modal.appendChild(header);
+
+    const tabsEl = document.createElement("div");
+    tabsEl.className = "detail-tabs";
+    const bodyEl = document.createElement("div");
+    bodyEl.className = "detail-body";
+
+    let activeTab = 0;
+    function renderTab() {
+      tabsEl.innerHTML = "";
+      DETAIL_TABS.forEach((label, i) => {
+        const tab = document.createElement("div");
+        tab.className = "detail-tab" + (i === activeTab ? " active" : "");
+        tab.textContent = label;
+        tab.addEventListener("click", () => { activeTab = i; renderTab(); });
+        tabsEl.appendChild(tab);
+      });
+      bodyEl.innerHTML = TAB_BUILDERS[activeTab](c);
+    }
+    renderTab();
+
+    modal.appendChild(tabsEl);
+    modal.appendChild(bodyEl);
+    backdrop.appendChild(modal);
+    document.body.appendChild(backdrop);
+    detailBackdropEl = backdrop;
+
+    document.addEventListener("keydown", onDetailEscKey);
+  }
+
+  function onDetailEscKey(e) { if (e.key === "Escape") closeDetailModal(); }
+
+  function closeDetailModal() {
+    if (detailBackdropEl && detailBackdropEl.parentNode) detailBackdropEl.parentNode.removeChild(detailBackdropEl);
+    detailBackdropEl = null;
+    document.removeEventListener("keydown", onDetailEscKey);
+  }
+
+  loadKakaoSdkAndInit();
+</script>
+</body>
+</html>
