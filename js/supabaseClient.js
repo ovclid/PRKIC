@@ -4,8 +4,8 @@
 
 function isSupabaseConfigured() {
   return (
-    SUPABASE_URL && !SUPABASE_URL.includes("여기에") &&
-    SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.includes("여기에")
+    SUPABASE_URL && !SUPABASE_URL.includes("https://avgwolhybzanicocqxgy.supabase.co") &&
+    SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.includes("sb_publishable_8BxXBIZ5amqQIMBdBcc5rA_TQ7QBYff")
   );
 }
 
