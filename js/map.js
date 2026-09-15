@@ -340,15 +340,39 @@ function buildBudgetTab(c) {
   );
 }
 
-function buildContactTab(c) {
+async function buildContactTab(c) {
   const ops = OPS_DATA[c.code];
-  if (ops && ops.operator) {
-    return `
-      <div class="detail-row"><span class="dr-label">위탁운영기관</span><span class="dr-value">${ops.operator}</span></div>
-      ${emptyState("광역/기초지자체 실무 담당자 연락처는 아직 연동 전입니다. contacts 테이블 데이터 확정 후 채워집니다.")}
-    `;
+  const operatorRow = ops && ops.operator
+    ? `<div class="detail-row"><span class="dr-label">위탁운영기관</span><span class="dr-value">${ops.operator}</span></div>`
+    : "";
+
+  if (!supabaseClient) {
+    return operatorRow + emptyState("Supabase 미연동 상태입니다. 로그인 담당자 연락처는 DB 연동 후 확인할 수 있습니다.");
   }
-  return emptyState("아직 운영기관이 지정되지 않았거나(건설중) 담당자 정보가 연동되지 않았습니다.");
+
+  const { data, error } = await supabaseClient
+    .from("contacts")
+    .select("org_role, dept, name, phone, email")
+    .eq("center_code", c.code)
+    .eq("is_current", true);
+
+  if (error) {
+    return operatorRow + emptyState("담당자 정보를 불러오지 못했습니다: " + error.message);
+  }
+  if (!data || data.length === 0) {
+    const msg = currentUser
+      ? "이 센터에 등록된 담당자가 없거나, 현재 로그인한 권한으로는 조회할 수 없습니다 (RLS)."
+      : "로그인하면 광역/기초/운영기관 담당자 연락처를 볼 수 있습니다 (현재 비로그인 상태).";
+    return operatorRow + emptyState(msg);
+  }
+
+  const rows = data.map((r) => `
+    <div class="detail-row">
+      <span class="dr-label">${r.org_role}</span>
+      <span class="dr-value">${r.dept || ""} ${r.name || ""} · ${r.phone || "-"} · ${r.email || "-"}</span>
+    </div>
+  `).join("");
+  return operatorRow + rows;
 }
 
 function buildExecutionTab(c) {
@@ -425,6 +449,7 @@ function openDetailModal(c) {
   bodyEl.className = "detail-body";
 
   let activeTab = 0;
+  let renderToken = 0;
   function renderTab() {
     tabsEl.innerHTML = "";
     DETAIL_TABS.forEach((label, i) => {
@@ -434,7 +459,17 @@ function openDetailModal(c) {
       tab.addEventListener("click", () => { activeTab = i; renderTab(); });
       tabsEl.appendChild(tab);
     });
-    bodyEl.innerHTML = TAB_BUILDERS[activeTab](c);
+
+    const myToken = ++renderToken;
+    const result = TAB_BUILDERS[activeTab](c);
+    if (result && typeof result.then === "function") {
+      bodyEl.innerHTML = emptyState("불러오는 중…");
+      result.then((html) => {
+        if (myToken === renderToken) bodyEl.innerHTML = html; // 그 사이 다른 탭으로 안 넘어갔을 때만 반영
+      });
+    } else {
+      bodyEl.innerHTML = result;
+    }
   }
   renderTab();
 
@@ -465,6 +500,7 @@ function showDataSourceNotice(msg) {
 }
 
 async function bootstrap() {
+  await initAuth(); // 로그인 상태 먼저 확인해야 contacts 등 RLS 반영된 데이터를 이어서 불러올 수 있음
   const data = await loadAppData();
   CENTERS = data.centers;
   OPS_DATA = data.ops;
