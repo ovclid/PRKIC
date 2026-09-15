@@ -38,6 +38,15 @@
   .sidebar-header .eyebrow { font-size: 12px; color: var(--navy); font-weight: 600; letter-spacing: 0.02em; margin: 0 0 4px; }
   .sidebar-header h1 { font-size: 18px; line-height: 1.35; margin: 0 0 6px; font-weight: 700; }
   .sidebar-header p { font-size: 12.5px; color: var(--ink-soft); margin: 0; }
+.auth-status { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11.5px; }
+.auth-status .auth-org { color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.auth-status .auth-logout-btn {
+  border: 1px solid var(--line); background: #fff; color: var(--ink-soft); border-radius: 5px;
+  padding: 3px 8px; font-size: 11px; cursor: pointer; font-family: inherit; flex-shrink: 0;
+}
+.auth-status .auth-logout-btn:hover { border-color: var(--navy); color: var(--navy); }
+.auth-status .auth-login-link { color: var(--navy); font-weight: 600; text-decoration: none; }
+.auth-status .auth-login-link:hover { text-decoration: underline; }
   .status-tabs { display: flex; gap: 6px; padding: 12px 20px 0; }
   .status-tab { flex: 1; text-align: center; padding: 7px 4px; border-radius: 7px; font-size: 12.5px; font-weight: 600; cursor: pointer; border: 1px solid var(--line); color: var(--ink-soft); background: #FCFCFB; }
   .status-tab.active[data-status=""] { background: var(--ink); color: #fff; border-color: var(--ink); }
