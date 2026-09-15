@@ -21,6 +21,7 @@ function loadKakaoSdkAndInit() {
   document.head.appendChild(script);
 }
 
+let CENTERS = [], OPS_DATA = {}; // bootstrap()에서 loadAppData() 결과로 채워짐
 let map, mapContainer, markerEntries = [], statusFilter = "";
 let labelsEnabled = true;
 let selectedCode = null;
@@ -454,4 +455,23 @@ function closeDetailModal() {
   document.removeEventListener("keydown", onDetailEscKey);
 }
 
-loadKakaoSdkAndInit();
+// 데이터(centers/운영현황)를 먼저 채운 뒤 Kakao SDK를 불러와 initMap()을 실행한다.
+// loadKakaoSdkAndInit()는 그대로 두고 순서만 뒤에 배치.
+function showDataSourceNotice(msg) {
+  const el = document.createElement("div");
+  el.style.cssText = "position:absolute;bottom:10px;left:16px;z-index:5;background:#FEF3C7;color:#92400E;font-size:11.5px;padding:5px 10px;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,0.12);";
+  el.textContent = "⚠ " + msg;
+  document.querySelector(".map-wrap").appendChild(el);
+}
+
+async function bootstrap() {
+  const data = await loadAppData();
+  CENTERS = data.centers;
+  OPS_DATA = data.ops;
+  if (data.source === "fallback") {
+    showDataSourceNotice("정적 데이터로 표시 중 (Supabase 미연동 또는 조회 실패 - 콘솔 확인)");
+  }
+  loadKakaoSdkAndInit();
+}
+
+bootstrap();
