@@ -6,6 +6,16 @@
 // CENTERS 각 원소 shape: { code, name, phase, status, lat, lng, region, opened, address, precision }
 // OPS_DATA[code] shape: { operator, rent_2026, rent_note_2026, occ2026:{...}, industry }
 
+// SQL 편집기에 복붙하는 과정에서 종종 제로폭 문자(U+200B 등)가 섞여 들어가는데,
+// 그러면 화면에는 똑같이 "부산"으로 보여도 문자열 비교(===)가 실패해서
+// 지역 필터가 조용히 일부 데이터를 걸러내는 버그가 생긴다. 로드 시점에 방어적으로 제거한다.
+function cleanText(s) {
+  return (s || "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .normalize("NFC")
+    .trim();
+}
+
 async function loadAppData() {
   if (!supabaseClient) {
     console.warn("[dataLoader] Supabase 미설정 - 정적 폴백 데이터 사용");
@@ -55,7 +65,7 @@ async function loadAppData() {
         status: row.status,
         lat: row.lat,
         lng: row.lng,
-        region: row.region_sido,
+        region: cleanText(row.region_sido),
         opened: row.opened_date || "",
         address: profile.address || null,
         // DB에 좌표 정밀도 컬럼이 아직 없어서 우선 고정값으로 표시.
