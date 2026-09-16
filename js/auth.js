@@ -12,10 +12,12 @@ async function initAuth() {
   const { data: { session } } = await supabaseClient.auth.getSession();
   await applySession(session);
   renderAuthUI();
+  if (typeof onAuthChangedHook === "function") onAuthChangedHook();
 
   supabaseClient.auth.onAuthStateChange(async (_event, session) => {
     await applySession(session);
     renderAuthUI();
+    if (typeof onAuthChangedHook === "function") onAuthChangedHook();
   });
 }
 
@@ -28,7 +30,7 @@ async function applySession(session) {
   currentUser = session.user;
   const { data, error } = await supabaseClient
     .from("profiles")
-    .select("org_id, role, organizations(name, org_type)")
+    .select("org_id, role, organizations(name, org_type, region_sido)")
     .eq("id", session.user.id)
     .single();
   if (error) {
@@ -44,6 +46,7 @@ async function signOut() {
   currentUser = null;
   currentProfile = null;
   renderAuthUI();
+  if (typeof onAuthChangedHook === "function") onAuthChangedHook();
 }
 
 function renderAuthUI() {

@@ -75,6 +75,9 @@ function initMap() {
   });
   map.setMaxLevel(14);
 
+  renderProvinces();
+  updateProvinceHighlight();
+
   populateFilters();
   renderList(CENTERS);
   plotMarkers(CENTERS);
@@ -101,6 +104,52 @@ function initMap() {
     if (suppressNextMapClick) { suppressNextMapClick = false; return; }
     clearSelection();
   });
+}
+
+// ===== 광역지자체 구역도 (PROVINCE_BOUNDARIES, js/provinceBoundaries.js) =====
+
+const PROVINCE_DEFAULT_STYLE = { fillColor: "#94A3B8", fillOpacity: 0.08, strokeColor: "#64748B", strokeWeight: 1, strokeOpacity: 0.5 };
+const PROVINCE_HIGHLIGHT_STYLE = { fillColor: "#1E88E5", fillOpacity: 0.28, strokeColor: "#1E3A8A", strokeWeight: 2, strokeOpacity: 0.9 };
+
+let provincePolygons = {};
+
+function renderProvinces() {
+  Object.entries(PROVINCE_BOUNDARIES).forEach(([name, rings]) => {
+    const polygons = rings.map((ring) => {
+      const path = ring.map(([lat, lng]) => new kakao.maps.LatLng(lat, lng));
+      const polygon = new kakao.maps.Polygon({
+        map,
+        path,
+        ...PROVINCE_DEFAULT_STYLE,
+        zIndex: 1,
+      });
+      kakao.maps.event.addListener(polygon, "click", () => {
+        const sel = document.getElementById("regionFilter");
+        if (sel && [...sel.options].some((o) => o.value === name)) {
+          sel.value = name;
+          applyFilters();
+        }
+      });
+      return polygon;
+    });
+    provincePolygons[name] = polygons;
+  });
+}
+
+function updateProvinceHighlight() {
+  const myRegion = currentProfile && currentProfile.organizations && currentProfile.organizations.org_type === "광역지자체"
+    ? currentProfile.organizations.region_sido
+    : null;
+
+  Object.entries(provincePolygons).forEach(([name, polygons]) => {
+    const style = name === myRegion ? PROVINCE_HIGHLIGHT_STYLE : PROVINCE_DEFAULT_STYLE;
+    polygons.forEach((p) => p.setOptions(style));
+  });
+}
+
+// auth.js에서 로그인 상태가 바뀔 때마다 호출 (map이 아직 없으면 무시)
+function onAuthChangedHook() {
+  if (map && Object.keys(provincePolygons).length) updateProvinceHighlight();
 }
 
 function populateFilters() {
