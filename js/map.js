@@ -22,7 +22,7 @@ function loadKakaoSdkAndInit() {
 }
 
 let CENTERS = [], OPS_DATA = {}; // bootstrap()에서 loadAppData() 결과로 채워짐
-let map, mapContainer, markerEntries = [], statusFilter = "";
+let map, mapContainer, markerEntries = [], showDone = true, showBuilding = true;
 let labelsEnabled = true;
 let selectedCode = null;
 let infoPanelEl = null, infoPanelToken = 0;
@@ -79,20 +79,24 @@ function initMap() {
   updateProvinceHighlight();
 
   populateFilters();
+  updateCounts();
   renderList(CENTERS);
   plotMarkers(CENTERS);
   updateLabelVisibility();
 
   document.getElementById("searchInput").addEventListener("input", applyFilters);
-  document.getElementById("regionFilter").addEventListener("change", applyFilters);
+  document.getElementById("regionFilter").addEventListener("change", () => {
+    applyFilters();
+    flyToRegion(document.getElementById("regionFilter").value);
+  });
   document.getElementById("phaseFilter").addEventListener("change", applyFilters);
-  document.querySelectorAll(".status-tab-btn").forEach(tab => {
-    tab.addEventListener("click", () => {
-      document.querySelectorAll(".status-tab-btn").forEach(t => t.classList.remove("active"));
-      tab.classList.add("active");
-      statusFilter = tab.dataset.status;
-      applyFilters();
-    });
+  document.getElementById("chkDone").addEventListener("change", (e) => {
+    showDone = e.target.checked;
+    applyFilters();
+  });
+  document.getElementById("chkBuilding").addEventListener("change", (e) => {
+    showBuilding = e.target.checked;
+    applyFilters();
   });
   kakao.maps.event.addListener(map, "zoom_changed", updateLabelVisibility);
 
@@ -146,6 +150,34 @@ function onAuthChangedHook() {
   if (map) updateProvinceHighlight();
 }
 
+function updateCounts() {
+  const done = CENTERS.filter((c) => c.status === "준공").length;
+  const building = CENTERS.filter((c) => c.status === "건설중").length;
+  const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setText("countDone", done);
+  setText("countBuilding", building);
+  setText("countAll", CENTERS.length);
+}
+
+const DEFAULT_CENTER = { lat: 36.4, lng: 127.9 };
+const DEFAULT_LEVEL = 13;
+
+// 지역 필터로 특정 지역을 고르면 그 지역 경계 전체가 보이게 적당히 확대/이동.
+// 필터를 다시 "지역"(전체)으로 돌리면 처음 보던 전국 시점으로 되돌아간다.
+function flyToRegion(regionName) {
+  if (!map) return;
+  if (!regionName) {
+    map.setLevel(DEFAULT_LEVEL);
+    map.panTo(new kakao.maps.LatLng(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng));
+    return;
+  }
+  const rings = PROVINCE_BOUNDARIES[regionName];
+  if (!rings) return;
+  const bounds = new kakao.maps.LatLngBounds();
+  rings.forEach((ring) => ring.forEach(([lat, lng]) => bounds.extend(new kakao.maps.LatLng(lat, lng))));
+  map.setBounds(bounds, 40, 40, 40, 40); // 상하좌우 40px 여백
+}
+
 function populateFilters() {
   const regions = [...new Set(CENTERS.map(c => c.region))].sort();
   const phases = [...new Set(CENTERS.map(c => c.phase))].sort((a,b) => a-b);
@@ -169,7 +201,7 @@ function applyFilters() {
     const matchesQ = !q || c.name.toLowerCase().includes(q) || c.region.toLowerCase().includes(q);
     const matchesRegion = !region || c.region === region;
     const matchesPhase = !phase || String(c.phase) === phase;
-    const matchesStatus = !statusFilter || c.status === statusFilter;
+    const matchesStatus = (c.status === "준공" && showDone) || (c.status === "건설중" && showBuilding);
     return matchesQ && matchesRegion && matchesPhase && matchesStatus;
   });
   renderList(filtered);
@@ -190,7 +222,6 @@ function renderList(items) {
         <span class="card-name">${c.name}</span>
         <span class="badge ${badgeClass}">${c.status}</span>
       </div>
-      <div class="card-meta">${c.phase}차 · ${c.region}${c.opened ? " · 개소 " + formatDate(c.opened) : ""}</div>
     `;
     card.addEventListener("click", () => selectCenter(c, { pan: true }));
     list.appendChild(card);
