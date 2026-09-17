@@ -27,14 +27,26 @@
     </div>
   </div>
 </div>
+<div id="statusExpandPanel" class="status-expand hidden">
+  <div class="sep-header">
+    <label class="sep-all"><input type="checkbox" id="sepAllToggle"> 전체 선택</label>
+    <span class="sep-close" id="sepClose">×</span>
+  </div>
+  <div class="sep-list" id="sepList"></div>
+</div>
 <div id="statusBar" class="status-bar">
-  <label class="status-check done">
-    <input type="checkbox" id="chkDone" checked> 준공 <b id="countDone">30</b>
-  </label>
-  <label class="status-check building">
-    <input type="checkbox" id="chkBuilding" checked> 건설중 <b id="countBuilding">38</b>
-  </label>
-  <span class="status-total">총 <b id="countAll">68</b></span>
+  <div class="status-check all">
+    <input type="checkbox" id="chkAll" checked>
+    <span class="status-check-label" data-scope="all">전체 <b id="countAll">68</b></span>
+  </div>
+  <div class="status-check done">
+    <input type="checkbox" id="chkDone" checked>
+    <span class="status-check-label" data-scope="준공">준공 <b id="countDone">30</b></span>
+  </div>
+  <div class="status-check building">
+    <input type="checkbox" id="chkBuilding" checked>
+    <span class="status-check-label" data-scope="건설중">건설중 <b id="countBuilding">38</b></span>
+  </div>
 </div>
 </div>
 
