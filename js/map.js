@@ -85,10 +85,6 @@ function initMap() {
   document.getElementById("searchInput").addEventListener("input", applyFilters);
   document.getElementById("regionFilter").addEventListener("change", applyFilters);
   document.getElementById("phaseFilter").addEventListener("change", applyFilters);
-  document.getElementById("labelToggle").addEventListener("change", (e) => {
-    labelsEnabled = e.target.checked;
-    updateLabelVisibility();
-  });
   document.querySelectorAll(".status-tab").forEach(tab => {
     tab.addEventListener("click", () => {
       document.querySelectorAll(".status-tab").forEach(t => t.classList.remove("active"));
@@ -129,13 +125,19 @@ function drawMyProvince(name) {
 
 function updateProvinceHighlight() {
   clearMyProvince();
+  const selectedRegion = document.getElementById("regionFilter")?.value || "";
   const myRegion = currentProfile && currentProfile.organizations && currentProfile.organizations.org_type === "광역지자체"
     ? currentProfile.organizations.region_sido
     : null;
-  if (myRegion) drawMyProvince(myRegion);
+  // 지역 필터로 직접 고른 지역이 있으면 로그인 여부와 무관하게 그게 우선,
+  // 필터가 없을 때만 로그인한 광역지자체 계정의 관할 구역을 보여준다.
+  const regionToShow = selectedRegion || myRegion;
+  if (regionToShow) drawMyProvince(regionToShow);
 
   const badge = document.getElementById("myRegionBadge");
-  if (badge) badge.textContent = myRegion ? `관할구역: ${myRegion}` : "";
+  if (badge) {
+    badge.textContent = !regionToShow ? "" : selectedRegion ? `표시 구역: ${regionToShow}` : `관할구역: ${regionToShow}`;
+  }
 }
 
 // auth.js에서 로그인 상태가 바뀔 때마다 호출 (map이 아직 없으면 무시)
@@ -172,6 +174,7 @@ function applyFilters() {
   renderList(filtered);
   plotMarkers(filtered);
   document.getElementById("visibleCount").textContent = filtered.length;
+  updateProvinceHighlight();
 }
 
 function renderList(items) {
