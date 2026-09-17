@@ -34,17 +34,9 @@
     min-width: 0;
     min-height: 0;
   }
-  .sidebar-header { padding: 22px 20px 14px; border-bottom: 1px solid var(--line); }
+  .sidebar-header { padding: 14px 14px 10px; border-bottom: 1px solid var(--line); }
   .sidebar-header p { font-size: 12.5px; color: var(--ink-soft); margin: 0; }
-  .status-summary { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .status-summary strong { color: var(--ink); font-size: 14px; }
-  .status-chip {
-    display: inline-block; padding: 2px 9px; border-radius: 6px; font-size: 12px; font-weight: 700;
-    border: 1px solid transparent;
-  }
-  .status-chip.done { color: var(--blue); background: #E3F2FD; border-color: var(--blue); }
-  .status-chip.building { color: var(--red); background: #FDECEA; border-color: var(--red); }
-.auth-status { margin-top: 10px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; font-size: 11.5px; }
+.auth-status { margin-top: 0; display: flex; align-items: center; justify-content: flex-end; gap: 8px; font-size: 11.5px; }
 .auth-status .auth-org { color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .auth-status .auth-logout-btn {
   border: 1px solid var(--line); background: #fff; color: var(--ink-soft); border-radius: 5px;
@@ -53,17 +45,11 @@
 .auth-status .auth-logout-btn:hover { border-color: var(--navy); color: var(--navy); }
 .auth-status .auth-login-link { color: var(--navy); font-weight: 600; text-decoration: none; }
 .auth-status .auth-login-link:hover { text-decoration: underline; }
-  .status-tabs { display: flex; gap: 6px; padding: 12px 20px 0; }
-  .status-tab { flex: 1; text-align: center; padding: 7px 4px; border-radius: 7px; font-size: 12.5px; font-weight: 600; cursor: pointer; border: 1px solid var(--line); color: var(--ink-soft); background: #FCFCFB; }
-  .status-tab.active[data-status=""] { background: var(--ink); color: #fff; border-color: var(--ink); }
-  .status-tab.active[data-status="준공"] { background: var(--blue); color: #fff; border-color: var(--blue); }
-  .status-tab.active[data-status="건설중"] { background: var(--red); color: #fff; border-color: var(--red); }
-  .controls { padding: 12px 20px 14px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
-  .controls input, .controls select { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; font-size: 13px; font-family: inherit; color: var(--ink); background: #FCFCFB; }
+  .controls { padding: 10px 14px; border-bottom: 1px solid var(--line); display: flex; gap: 6px; }
+  .controls input, .controls select { padding: 7px 8px; border: 1px solid var(--line); border-radius: 6px; font-size: 12.5px; font-family: inherit; color: var(--ink); background: #FCFCFB; min-width: 0; }
   .controls input:focus, .controls select:focus { outline: none; border-color: var(--navy); }
-  .controls-row { display: flex; gap: 8px; }
-  .controls-row select { flex: 1; }
-  .result-count { padding: 10px 20px 4px; font-size: 12px; color: var(--ink-soft); }
+  .controls input { flex: 1 1 auto; }
+  .controls select { flex: 0 1 76px; }
   .list {
     flex: 1;
     min-height: 0;
@@ -91,12 +77,21 @@
   #map { width: 100%; height: 100%; }
   .map-toolbar { position: absolute; top: 16px; left: 16px; background: rgba(255,255,255,0.96); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; font-size: 12.5px; color: var(--ink-soft); box-shadow: 0 2px 10px rgba(0,0,0,0.06); z-index: 5; display: flex; align-items: center; gap: 14px; }
   .map-toolbar strong { color: var(--ink); }
-  .legend-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
-  .legend-dot.done { background: var(--blue); }
-  .legend-dot.building { background: var(--red); }
+  .map-toolbar-right {
+    left: auto; right: 12px; top: 12px; flex-wrap: wrap; max-width: 220px; gap: 6px 8px; padding: 8px 10px;
+  }
+  .status-tab-btn {
+    display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 6px;
+    font-size: 11.5px; font-weight: 600; color: var(--ink-soft); cursor: pointer; background: #F1F3F9;
+  }
+  .status-tab-btn b { font-weight: 700; }
+  .status-tab-btn.active { background: var(--ink); color: #fff; }
+  .status-tab-btn.done.active { background: var(--blue); }
+  .status-tab-btn.building.active { background: var(--red); }
   .my-region-badge {
     font-weight: 700; color: var(--navy); background: #EAF0FC;
     padding: 2px 8px; border-radius: 5px; font-size: 11.5px;
+    flex-basis: 100%; text-align: center;
   }
   .my-region-badge:empty { display: none; }
 
