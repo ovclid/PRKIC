@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="./css/style.css">
 </head>
 <body>
+<div class="page">
 <div class="app">
   <aside class="sidebar">
     <div class="sidebar-header">
@@ -14,20 +15,27 @@
     </div>
     <div class="controls">
       <input id="searchInput" type="text" placeholder="검색">
-      <select id="regionFilter"><option value="">전체 지역</option></select>
-      <select id="phaseFilter"><option value="">전체 차수</option></select>
+      <select id="regionFilter"><option value="">지역</option></select>
+      <select id="phaseFilter"><option value="">차수</option></select>
     </div>
     <div class="list" id="list"></div>
   </aside>
   <div class="map-wrap">
     <div id="map"></div>
     <div class="map-toolbar map-toolbar-right">
-      <span class="status-tab-btn active" data-status="">전체 <b id="countAll">68</b></span>
-      <span class="status-tab-btn done" data-status="준공">준공 <b id="countDone">30</b></span>
-      <span class="status-tab-btn building" data-status="건설중">건설중 <b id="countBuilding">38</b></span>
       <span id="myRegionBadge" class="my-region-badge"></span>
     </div>
   </div>
+</div>
+<div id="statusBar" class="status-bar">
+  <label class="status-check done">
+    <input type="checkbox" id="chkDone" checked> 준공 <b id="countDone">30</b>
+  </label>
+  <label class="status-check building">
+    <input type="checkbox" id="chkBuilding" checked> 건설중 <b id="countBuilding">38</b>
+  </label>
+  <span class="status-total">총 <b id="countAll">68</b></span>
+</div>
 </div>
 
 <!-- Scripts -->
