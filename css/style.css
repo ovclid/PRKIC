@@ -35,10 +35,16 @@
     min-height: 0;
   }
   .sidebar-header { padding: 22px 20px 14px; border-bottom: 1px solid var(--line); }
-  .sidebar-header .eyebrow { font-size: 12px; color: var(--navy); font-weight: 600; letter-spacing: 0.02em; margin: 0 0 4px; }
-  .sidebar-header h1 { font-size: 18px; line-height: 1.35; margin: 0 0 6px; font-weight: 700; }
   .sidebar-header p { font-size: 12.5px; color: var(--ink-soft); margin: 0; }
-.auth-status { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11.5px; }
+  .status-summary { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .status-summary strong { color: var(--ink); font-size: 14px; }
+  .status-chip {
+    display: inline-block; padding: 2px 9px; border-radius: 6px; font-size: 12px; font-weight: 700;
+    border: 1px solid transparent;
+  }
+  .status-chip.done { color: var(--blue); background: #E3F2FD; border-color: var(--blue); }
+  .status-chip.building { color: var(--red); background: #FDECEA; border-color: var(--red); }
+.auth-status { margin-top: 10px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; font-size: 11.5px; }
 .auth-status .auth-org { color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .auth-status .auth-logout-btn {
   border: 1px solid var(--line); background: #fff; color: var(--ink-soft); border-radius: 5px;
@@ -57,8 +63,6 @@
   .controls input:focus, .controls select:focus { outline: none; border-color: var(--navy); }
   .controls-row { display: flex; gap: 8px; }
   .controls-row select { flex: 1; }
-  .label-toggle-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-soft); padding: 2px 2px 0; }
-  .label-toggle-row input { margin: 0; }
   .result-count { padding: 10px 20px 4px; font-size: 12px; color: var(--ink-soft); }
   .list {
     flex: 1;
