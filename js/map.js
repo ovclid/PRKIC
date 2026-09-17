@@ -74,6 +74,7 @@ function initMap() {
     level: 13,
   });
   map.setMaxLevel(14);
+  map.addControl(new kakao.maps.MapTypeControl(), kakao.maps.ControlPosition.TOPLEFT);
 
   updateProvinceHighlight();
 
@@ -85,9 +86,9 @@ function initMap() {
   document.getElementById("searchInput").addEventListener("input", applyFilters);
   document.getElementById("regionFilter").addEventListener("change", applyFilters);
   document.getElementById("phaseFilter").addEventListener("change", applyFilters);
-  document.querySelectorAll(".status-tab").forEach(tab => {
+  document.querySelectorAll(".status-tab-btn").forEach(tab => {
     tab.addEventListener("click", () => {
-      document.querySelectorAll(".status-tab").forEach(t => t.classList.remove("active"));
+      document.querySelectorAll(".status-tab-btn").forEach(t => t.classList.remove("active"));
       tab.classList.add("active");
       statusFilter = tab.dataset.status;
       applyFilters();
@@ -173,14 +174,12 @@ function applyFilters() {
   });
   renderList(filtered);
   plotMarkers(filtered);
-  document.getElementById("visibleCount").textContent = filtered.length;
   updateProvinceHighlight();
 }
 
 function renderList(items) {
   const list = document.getElementById("list");
   list.innerHTML = "";
-  document.getElementById("resultCount").textContent = `${items.length}개 센터`;
   items.forEach(c => {
     const card = document.createElement("div");
     card.className = "card" + (c.code === selectedCode ? " active" : "");
