@@ -10,34 +10,21 @@
 <div class="app">
   <aside class="sidebar">
     <div class="sidebar-header">
-      <p class="status-summary">
-        총 <strong>68개</strong>
-        <span class="status-chip done">준공 30</span>
-        <span class="status-chip building">건설중 38</span>
-      </p>
       <div id="authStatus" class="auth-status"></div>
     </div>
-    <div class="status-tabs" id="statusTabs">
-      <div class="status-tab active" data-status="">전체</div>
-      <div class="status-tab" data-status="준공">준공</div>
-      <div class="status-tab" data-status="건설중">건설중</div>
-    </div>
     <div class="controls">
-      <input id="searchInput" type="text" placeholder="센터명 또는 지역으로 검색">
-      <div class="controls-row">
-        <select id="regionFilter"><option value="">전체 지역</option></select>
-        <select id="phaseFilter"><option value="">전체 차수</option></select>
-      </div>
+      <input id="searchInput" type="text" placeholder="검색">
+      <select id="regionFilter"><option value="">전체 지역</option></select>
+      <select id="phaseFilter"><option value="">전체 차수</option></select>
     </div>
-    <div class="result-count" id="resultCount"></div>
     <div class="list" id="list"></div>
   </aside>
   <div class="map-wrap">
     <div id="map"></div>
-    <div class="map-toolbar">
-      <span><span id="visibleCount">68</span>개 표시 중</span>
-      <span><span class="legend-dot done"></span>준공</span>
-      <span><span class="legend-dot building"></span>건설중</span>
+    <div class="map-toolbar map-toolbar-right">
+      <span class="status-tab-btn active" data-status="">전체 <b id="countAll">68</b></span>
+      <span class="status-tab-btn done" data-status="준공">준공 <b id="countDone">30</b></span>
+      <span class="status-tab-btn building" data-status="건설중">건설중 <b id="countBuilding">38</b></span>
       <span id="myRegionBadge" class="my-region-badge"></span>
     </div>
   </div>
