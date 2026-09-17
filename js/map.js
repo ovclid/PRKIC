@@ -22,7 +22,8 @@ function loadKakaoSdkAndInit() {
 }
 
 let CENTERS = [], OPS_DATA = {}; // bootstrap()에서 loadAppData() 결과로 채워짐
-let map, mapContainer, markerEntries = [], showDone = true, showBuilding = true;
+let map, mapContainer, markerEntries = [], hiddenCodes = new Set();
+let showDone = true, showBuilding = true;
 let labelsEnabled = true;
 let selectedCode = null;
 let infoPanelEl = null, infoPanelToken = 0;
@@ -92,12 +93,25 @@ function initMap() {
   document.getElementById("phaseFilter").addEventListener("change", applyFilters);
   document.getElementById("chkDone").addEventListener("change", (e) => {
     showDone = e.target.checked;
+    syncAllCheckbox();
     applyFilters();
   });
   document.getElementById("chkBuilding").addEventListener("change", (e) => {
     showBuilding = e.target.checked;
+    syncAllCheckbox();
     applyFilters();
   });
+  document.getElementById("chkAll").addEventListener("change", (e) => {
+    showDone = e.target.checked;
+    showBuilding = e.target.checked;
+    document.getElementById("chkDone").checked = showDone;
+    document.getElementById("chkBuilding").checked = showBuilding;
+    applyFilters();
+  });
+  document.querySelectorAll(".status-check-label").forEach((label) => {
+    label.addEventListener("click", () => openStatusExpand(label.dataset.scope));
+  });
+  document.getElementById("sepClose").addEventListener("click", closeStatusExpand);
   kakao.maps.event.addListener(map, "zoom_changed", updateLabelVisibility);
 
   kakao.maps.event.addListener(map, "click", () => {
@@ -159,6 +173,68 @@ function updateCounts() {
   setText("countAll", CENTERS.length);
 }
 
+// "전체" 체크박스는 준공/건설중이 둘 다 체크돼 있을 때만 체크된 것처럼 보이게 동기화.
+function syncAllCheckbox() {
+  const chkAll = document.getElementById("chkAll");
+  if (chkAll) chkAll.checked = showDone && showBuilding;
+}
+
+// ===== 하단 상태바의 글자(전체/준공/건설중)를 탭하면 뜨는 개별 체크리스트 =====
+// 전통시장 지도의 카테고리 확장 목록과 같은 역할 - 카테고리 단위(체크박스 3개)보다
+// 더 세밀하게, 센터 하나하나를 개별로 켜고 끌 수 있게 한다.
+
+function openStatusExpand(scope) {
+  const items = scope === "all" ? CENTERS : CENTERS.filter((c) => c.status === scope);
+  const list = document.getElementById("sepList");
+  list.innerHTML = "";
+  items
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name, "ko"))
+    .forEach((c) => {
+      const row = document.createElement("div");
+      row.className = "sep-item";
+      const badgeClass = c.status === "건설중" ? "building" : "done";
+      row.innerHTML = `
+        <label>
+          <input type="checkbox" data-code="${c.code}" ${hiddenCodes.has(c.code) ? "" : "checked"}>
+          <span class="badge ${badgeClass}">${c.status}</span>
+          <span class="sep-name">${c.name}</span>
+        </label>
+      `;
+      row.querySelector("input").addEventListener("change", (e) => {
+        if (e.target.checked) hiddenCodes.delete(c.code);
+        else hiddenCodes.add(c.code);
+        syncSepAllToggle(items);
+        applyFilters();
+      });
+      list.appendChild(row);
+    });
+
+  syncSepAllToggle(items);
+
+  const sepAllToggle = document.getElementById("sepAllToggle");
+  sepAllToggle.onchange = (e) => {
+    items.forEach((c) => {
+      if (e.target.checked) hiddenCodes.delete(c.code);
+      else hiddenCodes.add(c.code);
+    });
+    openStatusExpand(scope); // 체크 상태 반영해서 목록 다시 그림
+    applyFilters();
+  };
+
+  document.getElementById("statusExpandPanel").classList.remove("hidden");
+}
+
+function syncSepAllToggle(items) {
+  const sepAllToggle = document.getElementById("sepAllToggle");
+  if (!sepAllToggle) return;
+  sepAllToggle.checked = items.length > 0 && items.every((c) => !hiddenCodes.has(c.code));
+}
+
+function closeStatusExpand() {
+  document.getElementById("statusExpandPanel").classList.add("hidden");
+}
+
 const DEFAULT_CENTER = { lat: 36.4, lng: 127.9 };
 const DEFAULT_LEVEL = 13;
 
@@ -202,7 +278,8 @@ function applyFilters() {
     const matchesRegion = !region || c.region === region;
     const matchesPhase = !phase || String(c.phase) === phase;
     const matchesStatus = (c.status === "준공" && showDone) || (c.status === "건설중" && showBuilding);
-    return matchesQ && matchesRegion && matchesPhase && matchesStatus;
+    const matchesHidden = !hiddenCodes.has(c.code);
+    return matchesQ && matchesRegion && matchesPhase && matchesStatus && matchesHidden;
   });
   renderList(filtered);
   plotMarkers(filtered);
@@ -345,12 +422,28 @@ function openInfoPanel(c) {
     wrapper.style.left = `${infoPanelCustomPosition.left}px`;
     wrapper.style.top = `${Math.max(infoPanelCustomPosition.top, 0)}px`;
   } else {
-    wrapper.style.left = `${mapContainer.clientWidth - wrapper.offsetWidth - 270}px`;
+    // 전통시장 지도의 computeQuadrantCenterLeft와 동일한 방식: 지도를 좌/우 절반으로
+    // 나눴을 때 그 절반의 가로 중앙에 패널을 둔다. 모바일처럼 컨테이너 자체가 좁아서
+    // 절반 폭이 패널보다 좁아지면 10px 여백 기준으로 clamp해서 화면 밖으로 안 나가게 한다.
+    // (예전엔 "컨테이너폭 - 패널폭 - 270"이라는 고정값을 뺐는데, 이 고정값이 모바일
+    // 좁은 화면에서는 음수가 나와서 패널이 화면 왼쪽 밖으로 밀려나 안 보이는 버그였다.)
+    wrapper.style.left = `${computeQuadrantCenterLeft(wrapper.offsetWidth, "left")}px`;
     wrapper.style.top = "10px";
   }
 
   infoPanelEl = wrapper;
   infoPanelToken += 1;
+}
+
+// 전통시장 프로젝트 computeQuadrantCenterLeft()와 동일 - 지도 좌/우 절반의 가로 중앙에
+// 패널을 놓되, 컨테이너보다 넓어지지 않도록 10px 여백 기준으로 clamp.
+function computeQuadrantCenterLeft(panelWidth, side) {
+  const containerWidth = mapContainer.clientWidth;
+  const halfWidth = containerWidth / 2;
+  const halfCenter = side === "right" ? halfWidth + halfWidth / 2 : halfWidth / 2;
+  const minLeft = 10;
+  const maxLeft = Math.max(minLeft, containerWidth - panelWidth - 10);
+  return Math.min(Math.max(halfCenter - panelWidth / 2, minLeft), maxLeft);
 }
 
 function closeInfoPanel() {
