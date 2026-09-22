@@ -1,4 +1,4 @@
-:root {
+  :root {
     --navy: #1E3A8A;
     --blue: #1E88E5;      /* 완공 */
     --red: #E53935;       /* 건설중 */
@@ -96,13 +96,18 @@
     padding: 8px 14px; border-top: 1px solid var(--line); background: var(--panel);
     font-size: 12.5px; position: relative; z-index: 7;
   }
-  .status-check { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-soft); font-weight: 600; }
-  .status-check input { margin: 0; accent-color: var(--ink-soft); cursor: pointer; }
-  .status-check.done input { accent-color: var(--blue); }
-  .status-check.building input { accent-color: var(--red); }
   .status-check b { color: var(--ink); font-weight: 700; }
-  .status-check-label { cursor: pointer; }
-  .status-check-label:hover { color: var(--navy); }
+  .status-cat-btn {
+    display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 7px;
+    border: 1px solid var(--line); background: #FCFCFB; color: var(--ink-soft); font-weight: 600;
+    font-size: 12.5px; cursor: pointer; font-family: inherit;
+  }
+  .status-cat-btn b { font-weight: 700; }
+  .status-cat-btn.open { border-color: var(--navy); }
+  .status-cat-btn:not(.active) { opacity: 0.5; text-decoration: line-through; }
+  .status-cat-btn.done.active { color: var(--blue); border-color: var(--blue); background: #E3F2FD; }
+  .status-cat-btn.building.active { color: var(--red); border-color: var(--red); background: #FDECEA; }
+  .status-cat-btn.all.active { color: var(--navy); border-color: var(--navy); background: #EAF0FC; }
 
   .status-expand {
     position: absolute; left: 0; right: 0; bottom: 100%;

@@ -23,7 +23,6 @@ function loadKakaoSdkAndInit() {
 
 let CENTERS = [], OPS_DATA = {}; // bootstrap()에서 loadAppData() 결과로 채워짐
 let map, mapContainer, markerEntries = [], hiddenCodes = new Set();
-let showDone = true, showBuilding = true;
 let labelsEnabled = true;
 let selectedCode = null;
 let infoPanelEl = null, infoPanelToken = 0;
@@ -81,6 +80,7 @@ function initMap() {
 
   populateFilters();
   updateCounts();
+  updateStatusButtonStates();
   renderList(CENTERS);
   plotMarkers(CENTERS);
   updateLabelVisibility();
@@ -91,25 +91,15 @@ function initMap() {
     flyToRegion(document.getElementById("regionFilter").value);
   });
   document.getElementById("phaseFilter").addEventListener("change", applyFilters);
-  document.getElementById("chkDone").addEventListener("change", (e) => {
-    showDone = e.target.checked;
-    syncAllCheckbox();
-    applyFilters();
-  });
-  document.getElementById("chkBuilding").addEventListener("change", (e) => {
-    showBuilding = e.target.checked;
-    syncAllCheckbox();
-    applyFilters();
-  });
-  document.getElementById("chkAll").addEventListener("change", (e) => {
-    showDone = e.target.checked;
-    showBuilding = e.target.checked;
-    document.getElementById("chkDone").checked = showDone;
-    document.getElementById("chkBuilding").checked = showBuilding;
-    applyFilters();
-  });
-  document.querySelectorAll(".status-check-label").forEach((label) => {
-    label.addEventListener("click", () => openStatusExpand(label.dataset.scope));
+  document.querySelectorAll(".status-cat-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const scope = btn.dataset.scope;
+      if (btn.classList.contains("open")) {
+        closeStatusExpand();
+      } else {
+        openStatusExpand(scope);
+      }
+    });
   });
   document.getElementById("sepClose").addEventListener("click", closeStatusExpand);
   kakao.maps.event.addListener(map, "zoom_changed", updateLabelVisibility);
@@ -173,17 +163,29 @@ function updateCounts() {
   setText("countAll", CENTERS.length);
 }
 
-// "전체" 체크박스는 준공/건설중이 둘 다 체크돼 있을 때만 체크된 것처럼 보이게 동기화.
-function syncAllCheckbox() {
-  const chkAll = document.getElementById("chkAll");
-  if (chkAll) chkAll.checked = showDone && showBuilding;
+// 상태바의 전체/준공/건설중 버튼 각각을, 그 범위 안 센터가 하나라도 hiddenCodes에
+// 있으면(=전부 다 보이는 상태가 아니면) 흐리게(active 해제) 표시.
+function updateStatusButtonStates() {
+  const scopes = [
+    { scope: "all", items: CENTERS },
+    { scope: "준공", items: CENTERS.filter((c) => c.status === "준공") },
+    { scope: "건설중", items: CENTERS.filter((c) => c.status === "건설중") },
+  ];
+  scopes.forEach(({ scope, items }) => {
+    const btn = document.querySelector(`.status-cat-btn[data-scope="${scope}"]`);
+    if (!btn) return;
+    const allVisible = items.length > 0 && items.every((c) => !hiddenCodes.has(c.code));
+    btn.classList.toggle("active", allVisible);
+  });
 }
 
-// ===== 하단 상태바의 글자(전체/준공/건설중)를 탭하면 뜨는 개별 체크리스트 =====
-// 전통시장 지도의 카테고리 확장 목록과 같은 역할 - 카테고리 단위(체크박스 3개)보다
-// 더 세밀하게, 센터 하나하나를 개별로 켜고 끌 수 있게 한다.
+// ===== 하단 상태바의 전체/준공/건설중 버튼을 누르면 뜨는 개별 체크리스트 =====
+// 전통시장 지도의 카테고리 확장 목록과 동일한 패턴: 바(bar)의 버튼 자체는 그 범위를
+// 대표하는 버튼일 뿐이고, 실제 보임/숨김은 눌렀을 때 펼쳐지는 목록의 체크박스로 제어한다.
 
 function openStatusExpand(scope) {
+  document.querySelectorAll(".status-cat-btn").forEach((b) => b.classList.toggle("open", b.dataset.scope === scope));
+
   const items = scope === "all" ? CENTERS : CENTERS.filter((c) => c.status === scope);
   const list = document.getElementById("sepList");
   list.innerHTML = "";
@@ -205,6 +207,7 @@ function openStatusExpand(scope) {
         if (e.target.checked) hiddenCodes.delete(c.code);
         else hiddenCodes.add(c.code);
         syncSepAllToggle(items);
+        updateStatusButtonStates();
         applyFilters();
       });
       list.appendChild(row);
@@ -219,6 +222,7 @@ function openStatusExpand(scope) {
       else hiddenCodes.add(c.code);
     });
     openStatusExpand(scope); // 체크 상태 반영해서 목록 다시 그림
+    updateStatusButtonStates();
     applyFilters();
   };
 
@@ -233,6 +237,7 @@ function syncSepAllToggle(items) {
 
 function closeStatusExpand() {
   document.getElementById("statusExpandPanel").classList.add("hidden");
+  document.querySelectorAll(".status-cat-btn").forEach((b) => b.classList.remove("open"));
 }
 
 const DEFAULT_CENTER = { lat: 36.4, lng: 127.9 };
@@ -277,12 +282,12 @@ function applyFilters() {
     const matchesQ = !q || c.name.toLowerCase().includes(q) || c.region.toLowerCase().includes(q);
     const matchesRegion = !region || c.region === region;
     const matchesPhase = !phase || String(c.phase) === phase;
-    const matchesStatus = (c.status === "준공" && showDone) || (c.status === "건설중" && showBuilding);
     const matchesHidden = !hiddenCodes.has(c.code);
-    return matchesQ && matchesRegion && matchesPhase && matchesStatus && matchesHidden;
+    return matchesQ && matchesRegion && matchesPhase && matchesHidden;
   });
   renderList(filtered);
   plotMarkers(filtered);
+  updateLabelVisibility(); // plotMarkers가 라벨을 일단 다 켜놓으므로, 줌 레벨 기준을 바로 다시 적용
   updateProvinceHighlight();
 }
 
